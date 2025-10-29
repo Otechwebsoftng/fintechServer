@@ -1,0 +1,222 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  action        String   @db.VarChar(50)
+  ipAddress     String   @db.VarChar(30)
+  model         String?  @db.VarChar(60)
+  userId        String?  @db.VarChar(36)
+  body          Json?    @default("[]")
+  route         Json?    @default("[]")
+  query         Json?    @default("[]")
+  requestStatus String
+  response      Json?    @default("[]")
+  createdAt     DateTime @default(now())
+}
+
+model User {
+  id                         String                     @id @default(uuid())
+  firstName                  String
+  lastName                   String
+  otherName                  String?
+  email                      String                     @unique
+  phoneNumber                String                     @unique
+  password                   String
+  transactionPin             String?
+  gender                     Gender                     @default(NOT_SPECIFIED)
+  dob                        DateTime?
+  address                    String?
+  city                       String?
+  state                      String?
+  country                    String?
+  otp                        Int?
+  otpExpiresIn               DateTime?
+  userType                   UserType                   @default(USER)
+  kycLevel                   KycLevel                   @default(LEVEL_0)
+  bvn                        String?
+  bvnVerified                DocumentVerificationStatus @default(NOT_VERIFIED)
+  identityType               IdentityType?
+  identityTypeNo             String?
+  identityTypeUrl            String?
+  identityVerificationStatus DocumentVerificationStatus @default(NOT_VERIFIED)
+  facialVerificationStatus   DocumentVerificationStatus @default(NOT_VERIFIED)
+  status                     AccountStatus              @default(INACTIVE)
+  isVerified                 Boolean                    @default(false)
+  isDeleted                  Boolean                    @default(false)
+  avatarUrl                  String?
+  avatarPublicId             String?
+  RefreshToken               RefreshToken[]
+  role                       Role?                      @relation(fields: [roleId], references: [id])
+  roleId                     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email, phoneNumber])
+  Payments Payments[]
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique @db.VarChar(50)
+  slug        String           @unique @db.VarChar(60)
+  description String?          @db.VarChar(256)
+  isDeleted   Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime?        @updatedAt
+  users       User[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String    @id @default(uuid())
+  slug        String    @unique @db.VarChar(60)
+  description String    @db.VarChar(160)
+  isDeleted   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime? @updatedAt
+
+  roles          RolePermission[]
+  MenuPermission MenuPermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@id([roleId, permissionId])
+}
+
+model MenuPermission {
+  menuItemId   String
+  permissionId String
+  createdAt    DateTime   @default(now())
+  menuItem     MenuItem   @relation(fields: [menuItemId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([menuItemId, permissionId])
+}
+
+model MenuItem {
+  id          String           @id @default(uuid())
+  name        String           @db.VarChar(100)
+  slug        String           @unique @db.VarChar(100)
+  url         String           @db.VarChar(255)
+  icon        String?          @db.VarChar(50)
+  order       Int              @default(0)
+  parentId    String?
+  parent      MenuItem?        @relation("ChildMenuItems", fields: [parentId], references: [id])
+  children    MenuItem[]       @relation("ChildMenuItems")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime?        @updatedAt
+  permissions MenuPermission[]
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid())
+  hashedToken String   @unique
+  userId      String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index(fields: [userId])
+}
+
+model Payments {
+  id             String        @id @default(uuid())
+  userId         String?
+  status         PaymentStatus @default(PENDING)
+  currency       Currency      @default(NGN)
+  description    String?
+  reference      String?       @unique
+  amount         Float?
+  paymentEntry   PaymentEntry? @default(CREDIT)
+  payMethod      PaymentMethod @default(CARD)
+  ip_address     String?
+  paid_at        DateTime?
+  failed_at      DateTime?
+  failure_reason String?
+  failure_code   String?
+  user           User?         @relation(fields: [userId], references: [id])
+  isDeleted      Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime?
+
+  @@index([userId, reference])
+}
+
+enum DocumentVerificationStatus {
+  PASSED
+  FAILED
+  NOT_VERIFIED
+}
+
+enum KycLevel {
+  LEVEL_0 @map("LEVEL 0")
+  LEVEL_1 @map("LEVEL 1")
+  LEVEL_2 @map("LEVEL 2")
+  LEVEL_3 @map("LEVEL 3")
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum Currency {
+  USD
+  EUR
+  GBP
+  NGN
+  CAD
+}
+
+enum IdentityType {
+  NIN
+  PASSPORT
+  DRIVER_LICENSE
+  NATIONAL_ID
+}
+
+enum UserType {
+  ADMIN
+  USER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  NOT_SPECIFIED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum PaymentEntry {
+  CREDIT
+  DEBIT
+}
+
+enum PaymentMethod {
+  CARD
+  BANK_TRANSFER
+}
