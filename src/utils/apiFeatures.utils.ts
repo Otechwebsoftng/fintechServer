@@ -20,8 +20,8 @@ export default class APIFeatures {
     return token;
   }
 
-  static async generateOtp() {
-    const token = Math.floor(1000 + Math.random() * 9000);
+   static async generateOtp() {
+    const token = Math.floor(Math.random() * (999999 - 100000 +1)) + 100000;
     const currentTime = new Date();
     const config = new ConfigService();
     const otpExpires = new Date(

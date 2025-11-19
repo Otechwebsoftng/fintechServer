@@ -11,8 +11,7 @@ import { Transform } from 'class-transformer';
 export class LoginDto {
   @ApiProperty()
   @IsNotEmpty()
-  @IsString()
-  @IsOptional()
+  @IsEmail()
   @Transform(({ value }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
@@ -25,4 +24,3 @@ export class LoginDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   readonly password: string;
 }
-

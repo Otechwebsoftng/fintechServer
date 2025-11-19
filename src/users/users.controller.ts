@@ -12,7 +12,7 @@ import {
 import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { AuthGuard } from '@nestjs/passport';
-import { AccountStatus, User } from '@prisma/client';
+import { AccountStatus, KycLevel, User } from '@prisma/client';
 import { PermissionsGuard } from 'src/auth/guard/permission.guard';
 import { Permissions } from 'src/auth/decorators/permission.decorator';
 import { ActivateAccountDto } from './dto/activateAccount.dto';
@@ -54,6 +54,18 @@ export class UsersController {
     required: false,
     description: 'Search users by email, firstName or lastName',
   })
+  @ApiQuery({
+    name: 'country',
+    required: false,
+    description: 'Filter users by country',
+  })
+  @ApiQuery({
+    name: 'verificationLevel',
+    required: false,
+    enum: KycLevel,
+    description: 'Filter users by verification level',
+  })
+
   @UseGuards(AuthGuard(), PermissionsGuard)
   @Permissions('super_admin.full_access', 'support_admin')
   async getAllUsers(
@@ -61,8 +73,10 @@ export class UsersController {
     @Query('pageSize') pageSize?: number,
     @Query('status') status?: AccountStatus,
     @Query('search') search?: string,
+    @Query('country') country?: string,
+    @Query('verificationLevel') verificationLevel?: KycLevel,
   ) {
-    return this.usersService.getAll(page, pageSize, status, search);
+    return this.usersService.getAll(page, pageSize, status, search, country, verificationLevel);
   }
 
   @Get(':userId')
@@ -137,9 +151,9 @@ export class UsersController {
     summary: 'Users can verify OTP for password reset.',
   })
   async verifyPassword(
-    @Body() payload:any
+    @Body() payload: ActivateAccountDto
   ) {
-    return this.usersService.passwordOtpVerify( Number(payload.otp));
+    return this.usersService.passwordOtpVerify(Number(payload.otp));
   }
 
   // Reset Password

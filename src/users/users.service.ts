@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { AccountStatus, User, UserType } from '@prisma/client';
+import { AccountStatus, KycLevel, User, UserType } from '@prisma/client';
 import { ActivateAccountDto } from './dto/activateAccount.dto';
 import APIFeatures from 'src/utils/apiFeatures.utils';
 import { JwtService } from '@nestjs/jwt';
@@ -32,6 +32,8 @@ export class UsersService {
     pageSize?: number,
     status?: AccountStatus,
     search?: string,
+    country?: string,
+    verificationLevel?: KycLevel,
   ) {
     const shouldPaginate =
       page && pageSize && !isNaN(Number(page)) && !isNaN(Number(pageSize));
@@ -82,6 +84,25 @@ export class UsersService {
         },
       ];
     }
+    if (verificationLevel) {
+      const levelArray = verificationLevel
+        .split(',')
+        .map((s) => s.trim().toUpperCase());
+
+      // Filter out any invalid levels
+      const validLevels = levelArray.filter((s) =>
+        Object.values(KycLevel).includes(s as KycLevel),
+      );
+
+      if (validLevels.length > 0) {
+        // Use the 'in' operator to filter by multiple levels
+        whereClause.verificationLevel = { in: validLevels as KycLevel[] };
+      }
+    }
+
+    if (country) {
+      whereClause.country = country;
+    }
     const [users, count] = await Promise.all([
       this.prisma.user.findMany({
         where: whereClause,
@@ -103,7 +124,7 @@ export class UsersService {
         password: _,
         transactionPin,
         isDeleted,
-        isVerified,
+        isEmailVerified,
         ...userWithoutPassword
       } = user;
       return userWithoutPassword;
@@ -233,7 +254,7 @@ export class UsersService {
         otp: null,
         otpExpiresIn: null,
         status: AccountStatus.ACTIVE,
-        isVerified: true,
+        isEmailVerified: true,
       },
     });
 
@@ -294,6 +315,26 @@ export class UsersService {
     }
 
     return { message: 'OTP verified successfully' };
+  }
+
+  async softDelete(userId: string) {
+    const user = await this.getOne({ id: userId, isDeleted: false });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const result = await this.prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        isDeleted: true,
+        status: AccountStatus.INACTIVE,
+      },
+    });
+
+    return 'Account temporarily deleted...';
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto, otp: number) {

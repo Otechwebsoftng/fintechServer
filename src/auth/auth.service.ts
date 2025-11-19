@@ -46,9 +46,9 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    if (user.status === AccountStatus.DELETED) {
+    if (user.status === AccountStatus.INACTIVE) {
       throw new BadRequestException(
-        'User account is deleted. Contact support.',
+        'User account is inactive. Contact support.',
       );
     }
 
@@ -77,8 +77,8 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    if (user.state === AccountStatus.DELETED) {
-      throw new BadRequestException('User account is deleted.');
+    if (user.status === AccountStatus.INACTIVE) {
+      throw new BadRequestException('User account is inactive. Contact support.');
     }
 
     const token = await APIFeatures.assignJwtToken(user, this.jwtService);
@@ -134,8 +134,8 @@ export class AuthService {
       data: {
         otp: null,
         otpExpiresIn: null,
-        isVerified: true,
         status: AccountStatus.ACTIVE,
+        isEmailVerified: true,
       },
     });
 

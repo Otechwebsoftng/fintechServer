@@ -103,7 +103,7 @@ export class RoleService {
     return role;
   }
 
-  async updateROle(roleId: string, payload: CreateRoleDto) {
+  async updateRole(roleId: string, payload: CreateRoleDto) {
     const role = await this.getOne({ id: roleId });
 
     if (!role) {

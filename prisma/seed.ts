@@ -1,4 +1,11 @@
-import { PrismaClient, UserType, Role, Permission, AccountStatus, Gender } from '@prisma/client';
+import {
+  PrismaClient,
+  UserType,
+  Role,
+  Permission,
+  AccountStatus,
+  Gender,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -14,6 +21,7 @@ async function main() {
       slug: 'admin.view_all',
       description: 'Allows fetching all admin records',
     },
+
     { slug: 'admin.view', description: 'Allows viewing admin details' },
     { slug: 'admin.update', description: 'Allows updating admin information' },
     { slug: 'admin.restore', description: 'Allows restoring deleted admin' },
@@ -244,7 +252,7 @@ async function main() {
       phoneNumber: '08123456789',
       userType: UserType.ADMIN,
       status: AccountStatus.ACTIVE,
-      isVerified: true,
+      isEmailVerified: true,
       role: { connect: { id: superAdminRole.id } },
       gender: Gender.MALE,
       dob: new Date('1995-06-17T08:57:21.026Z'),

@@ -33,6 +33,22 @@ export class MailService {
     });
   }
 
+  async adminWelcome(
+    email: string,
+    firstName: string,
+    role: string,
+    password: string,
+  ) {
+    const subject = 'Admin Onboarding';
+    this.customLogger.log(`log in credentials sent to ${email}`);
+    await this.sendDefaultMail(email, subject, 'adminOnboarding', {
+      email,
+      firstName,
+      role,
+      password,
+    });
+  }
+
   private async sendDefaultMail(
     email,
     subject,

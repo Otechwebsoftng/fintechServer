@@ -27,7 +27,7 @@ model User {
   lastName                   String
   otherName                  String?
   email                      String                     @unique
-  phoneNumber                String                     @unique
+  phoneNumber                String?                     @unique
   password                   String
   transactionPin             String?
   gender                     Gender                     @default(NOT_SPECIFIED)
@@ -48,19 +48,28 @@ model User {
   identityVerificationStatus DocumentVerificationStatus @default(NOT_VERIFIED)
   facialVerificationStatus   DocumentVerificationStatus @default(NOT_VERIFIED)
   status                     AccountStatus              @default(INACTIVE)
-  isVerified                 Boolean                    @default(false)
+  isEmailVerified            Boolean                    @default(false)
+  isAdminPasswordChanged     Boolean?                   @default(false)
   isDeleted                  Boolean                    @default(false)
   avatarUrl                  String?
   avatarPublicId             String?
   RefreshToken               RefreshToken[]
   role                       Role?                      @relation(fields: [roleId], references: [id])
   roleId                     String?
+  ipAddress                  String?                    @db.VarChar(30)
+  creatorId                  String?
+  createdBy                  User?                      @relation("UserCreatedBy", fields: [creatorId], references: [id])
+  updaterId                  String?
+  lastUpdatedBy              User?                      @relation("UserLastUpdatedBy", fields: [updaterId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  Payments      Payments[]
+  BlackListedIp BlackListedIp[]
+  createdUsers  User[]          @relation("UserCreatedBy")
+  updatedUsers  User[]          @relation("UserLastUpdatedBy")
 
   @@index([email, phoneNumber])
-  Payments Payments[]
 }
 
 model Role {
@@ -159,6 +168,16 @@ model Payments {
   @@index([userId, reference])
 }
 
+model BlackListedIp {
+  id        String   @id @default(uuid())
+  ipAddress String   @unique @db.VarChar(30)
+  reason    String?  @db.VarChar(256)
+  createdAt DateTime @default(now())
+  userId    String?
+  updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id])
+}
+
 enum DocumentVerificationStatus {
   PASSED
   FAILED
@@ -175,8 +194,6 @@ enum KycLevel {
 enum AccountStatus {
   ACTIVE
   INACTIVE
-  SUSPENDED
-  DELETED
 }
 
 enum Currency {
