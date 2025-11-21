@@ -29,7 +29,7 @@ export class CreateAdminDto {
   )
   readonly email: string;
 
-  @ApiProperty({ type: 'Role Id' })
+  @ApiProperty()
   @IsOptional()
   @IsString()
   readonly roleId: string;
