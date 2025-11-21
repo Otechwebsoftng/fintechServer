@@ -5,6 +5,7 @@ import { PrismaModule } from 'src/prisma/prisma.module';
 import { PassportModule } from '@nestjs/passport';
 import { AuthModule } from 'src/auth/auth.module';
 import { UsersModule } from 'src/users/users.module';
+import { CustomLogger } from 'src/custom.logger';
 
 @Module({
   imports: [
@@ -13,7 +14,7 @@ import { UsersModule } from 'src/users/users.module';
     UsersModule,
     PrismaModule,
   ],
-  providers: [KycService],
+  providers: [KycService, CustomLogger],
   controllers: [KycController],
 })
 export class KycModule {}
