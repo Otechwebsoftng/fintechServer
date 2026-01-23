@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -16,6 +18,7 @@ import { ResetPasswordDto } from './dto/resetPassword.dto';
 import * as bcrypt from 'bcrypt';
 import { SignUpDto } from './dto/signup.dto';
 import { TransactionPinDto } from './dto/transactionPin.dto';
+import { WalletService } from 'src/wallet/wallet.service';
 const PASSWORD_SALT = 10;
 
 @Injectable()
@@ -24,6 +27,8 @@ export class UsersService {
     private prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
+    @Inject(forwardRef(() => WalletService))
+    private readonly walletService: WalletService,
     private readonly logger: CustomLogger,
   ) {}
 
@@ -188,14 +193,27 @@ export class UsersService {
 
     const otp = await APIFeatures.generateOtp();
 
-    const newUser = await this.prisma.user.create({
-      data: {
-        ...payload,
-        password: hashPassword,
-        otp: otp.token,
-        otpExpiresIn: otp.otpExpires,
-        userType: payload.userType || UserType.USER,
-      },
+    const newUser = await this.prisma.$transaction(async (tx) => {
+      // Create user
+      const user = await tx.user.create({
+        data: {
+          ...payload,
+          password: hashPassword,
+          otp: otp.token,
+          otpExpiresIn: otp.otpExpires,
+          userType: payload.userType || UserType.USER,
+        },
+      });
+
+      // Create wallets for user (NGN and USD by default)
+      try {
+        await this.walletService.createUserWallet(user.id, tx);
+      } catch (walletError) {
+        this.logger.error('Wallet creation failed during signup', walletError);
+        throw new BadRequestException('Failed to create user wallets');
+      }
+
+      return user;
     });
 
     try {
@@ -205,8 +223,8 @@ export class UsersService {
         otp.token,
       );
     } catch (err) {
-      this.logger.log('Email not sent', err);
-      throw new BadRequestException('Email not sent');
+      // Log but don't throw - user is already created successfully
+      this.logger.error('Welcome email failed to send', err);
     }
 
     const token = await APIFeatures.assignJwtToken(newUser, this.jwtService);
@@ -271,7 +289,9 @@ export class UsersService {
 
     await this.mailService.welcomeMail(user.email, user.username, otp.token);
 
-    return { data: userData };
+    const result = this.sanitizeUser(userData);
+
+    return { message: 'OTP Sent Successfully', data: result };
   }
 
   async sendPasswordOtp(payload: SendPasswordOtpDto) {

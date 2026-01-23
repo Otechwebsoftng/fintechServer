@@ -127,7 +127,7 @@ export class UsersController {
   ): Promise<{}> {
     return this.usersService.createUser(payload);
   }
-  @Post('/resend-otp')
+  @Patch('/resend-otp')
   @ApiOperation({ summary: 'Resend OTP to a user' })
   @UseGuards(AuthGuard())
   async resendOTP(@CurrentUser() user: User): Promise<{}> {

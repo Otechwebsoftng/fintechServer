@@ -11,6 +11,7 @@ import { JwtStrategy } from './jwt.strategy';
 import { MailService } from 'src/mail/mail.service';
 import { MailModule } from 'src/mail/mail.module';
 import { CustomLogger } from 'src/custom.logger';
+import { WalletService } from 'src/wallet/wallet.service';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { CustomLogger } from 'src/custom.logger';
     PrismaService,
     CustomLogger,
     JwtStrategy,
+    WalletService
   ],
   controllers: [AuthController],
   exports: [AuthService, JwtStrategy, PassportModule],

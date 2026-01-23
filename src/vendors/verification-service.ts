@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APIRequest } from '../helpers/http.service';
+import { Utility } from 'src/helpers/utilities.service';
 
 @Injectable()
 export class VerificationService {
@@ -8,7 +9,7 @@ export class VerificationService {
   publicKey: string;
   privateKey: string;
   appId: string;
-  headers: object;
+  headers: object; 
 
   constructor(private configService: ConfigService) {
     this.baseUrl = this.configService.get('DOJAH_BASE_URL');
@@ -26,9 +27,12 @@ export class VerificationService {
   async verifyBvn(number: string) {
     if (!/^[0-9]{11}$/.test(number))
       throw new BadRequestException('Verification failed, invalid BVN');
-    const url = '/bvn/advance?bvn=' + number;
+    const url = '/kyc/bvn?bvn=' + number;
     const { entity = false, error = false } = await this.sendGetRequest(url);
-    if (error || !entity) throw new BadRequestException('Verification failed');
+    if (error || !entity) {
+      const errorMessage = error?.error || error || 'Verification failed';
+      throw new BadRequestException(errorMessage);
+    }
 
     return {
       status: 'successful',
@@ -40,7 +44,7 @@ export class VerificationService {
   async verifyNin(number: string) {
     if (!/^[0-9]{11}$/.test(number))
       throw new BadRequestException('Verification failed, invalid NIN');
-    const url = '/nin?nin=' + number;
+    const url = '/kyc/nin?nin=' + number;
     const { entity = false, error = false } = await this.sendGetRequest(url);
     if (error || !entity) throw new BadRequestException('Verification failed');
 
@@ -51,14 +55,50 @@ export class VerificationService {
     };
   }
 
-  async verifyDriversLicense(number: string) {
+  async verifyDriversLicense(number: string, ) {
     if (!/^[a-zA-Z]{3}([ -]{1})?[A-Z0-9]{6,12}$/i.test(number))
       throw new BadRequestException(
         'Verification failed, invalid licence number',
       );
-    const url = '/dl?license_number=' + number;
+    const url = '/kyc/dl?license_number=' + number;
     const { entity = false, error = false } = await this.sendGetRequest(url);
     if (error || !entity) throw new BadRequestException('Verification failed');
+
+
+
+    return {
+      status: 'successful',
+      message: 'Verification completed successfully',
+      data: entity ?? null,
+    };
+  }
+
+  async internationalPassport(number: string, ) {
+    if (!/^[a-zA-Z]{3}([ -]{1})?[A-Z0-9]{6,12}$/i.test(number))
+      throw new BadRequestException(
+        'Verification failed, invalid passport number',
+      );
+    const url = '/kyc/passport?passport_number=' + number;
+    const { entity = false, error = false } = await this.sendGetRequest(url);
+    if (error || !entity) throw new BadRequestException('Verification failed');
+
+
+
+    return {
+      status: 'successful',
+      message: 'Verification completed successfully',
+      data: entity ?? null,
+    };
+  }
+
+  async verifyDocumentImage(imageUrl: string,) {
+    const url = '/dl?license_number=' + imageUrl;
+    const { entity = false, error = false } = await this.sendGetRequest(url);
+    if (error || !entity) throw new BadRequestException('Verification failed');
+
+    //upload front image to cloudinary
+      // const frontImageUrl =  await Utility.uploadImage(frontImgFilePath, 'drivers_license');
+      // const backImageUrl =  await Utility.uploadImage(backImgFilePath, 'drivers_license');
 
     return {
       status: 'successful',
@@ -70,7 +110,7 @@ export class VerificationService {
   async verifyVoterId(number: string) {
     if (!/^[a-zA-Z0-9 ]{9,29}$/i.test(number))
       throw new BadRequestException('Verification failed, invalid voter ID');
-    const url = '/vin?vin=' + number;
+    const url = '/kyc/vin?vin=' + number;
     const { entity = false, error = false } = await this.sendGetRequest(url);
     if (error || !entity) throw new BadRequestException('Verification failed');
 
@@ -83,8 +123,6 @@ export class VerificationService {
 
   async verifyIdentity(identityType, number) {
     switch (identityType) {
-      case 'BVN':
-        return this.verifyBvn(number);
       case 'NIN':
         return this.verifyNin(number);
       case 'DRIVERS_LICENSE':

@@ -27,7 +27,7 @@ model User {
   lastName                   String
   otherName                  String?
   email                      String                     @unique
-  phoneNumber                String?                     @unique
+  phoneNumber                String?                    @unique
   password                   String
   transactionPin             String?
   gender                     Gender                     @default(NOT_SPECIFIED)
@@ -40,7 +40,7 @@ model User {
   otpExpiresIn               DateTime?
   userType                   UserType                   @default(USER)
   kycLevel                   KycLevel                   @default(LEVEL_0)
-  bvn                        String?
+  bvn                        String?                    @unique
   bvnVerified                DocumentVerificationStatus @default(NOT_VERIFIED)
   identityType               IdentityType?
   identityTypeNo             String?
@@ -61,13 +61,14 @@ model User {
   createdBy                  User?                      @relation("UserCreatedBy", fields: [creatorId], references: [id])
   updaterId                  String?
   lastUpdatedBy              User?                      @relation("UserLastUpdatedBy", fields: [updaterId], references: [id])
-
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  Payments      Payments[]
-  BlackListedIp BlackListedIp[]
-  createdUsers  User[]          @relation("UserCreatedBy")
-  updatedUsers  User[]          @relation("UserLastUpdatedBy")
+  payments                   Payment[]
+  wallets                    Wallet[]
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime                   @updatedAt
+  BlackListedIp              BlackListedIp[]
+  createdUsers               User[]                     @relation("UserCreatedBy")
+  updatedUsers               User[]                     @relation("UserLastUpdatedBy")
+  beneficiaries              Beneficiary[]
 
   @@index([email, phoneNumber])
 }
@@ -145,27 +146,79 @@ model RefreshToken {
   @@index(fields: [userId])
 }
 
-model Payments {
-  id             String        @id @default(uuid())
-  userId         String?
-  status         PaymentStatus @default(PENDING)
-  currency       Currency      @default(NGN)
-  description    String?
-  reference      String?       @unique
-  amount         Float?
-  paymentEntry   PaymentEntry? @default(CREDIT)
-  payMethod      PaymentMethod @default(CARD)
-  ip_address     String?
-  paid_at        DateTime?
-  failed_at      DateTime?
-  failure_reason String?
-  failure_code   String?
-  user           User?         @relation(fields: [userId], references: [id])
-  isDeleted      Boolean       @default(false)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime?
+model Payment {
+  id                String              @id @default(uuid())
+  userId            String?
+  status            PaymentStatus       @default(PENDING)
+  currency          Currency            @default(NGN)
+  description       String?
+  reference         String?             @unique
+  amount            Float?
+  paymentEntry      PaymentEntry?       @default(CREDIT)
+  paymentMethod     PaymentMethod       @default(CARD)
+  ip_address        String?
+  paid_at           DateTime?
+  failed_at         DateTime?
+  failure_reason    String?
+  failure_code      String?
+  user              User?               @relation(fields: [userId], references: [id])
+  isDeleted         Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime?
+  walletTransaction WalletTransaction[]
 
   @@index([userId, reference])
+}
+
+model Wallet {
+  id           String              @id @default(uuid())
+  userId       String
+  currency     Currency
+  status       AccountStatus       @default(ACTIVE)
+  isDeleted    Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  user         User                @relation(fields: [userId], references: [id])
+  transactions WalletTransaction[]
+
+  @@unique([userId, currency], name: "user_currency_unique")
+  @@index([userId, currency])
+}
+
+model WalletTransaction {
+  id              String       @id @default(uuid())
+  walletId        String
+  amount          Float
+  currency        Currency
+  transactionType PaymentEntry
+  reference       String?
+  description     String?
+  metadata        Json?
+  paymentId       String?
+  payment         Payment?     @relation(fields: [paymentId], references: [id])
+  wallet          Wallet       @relation(fields: [walletId], references: [id])
+  isDeleted       Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([walletId])
+  @@index([reference])
+}
+
+model Beneficiary {
+  id            String   @id @default(uuid())
+  userId        String
+  country       String   @db.VarChar(50)
+  bankName      String   @db.VarChar(100)
+  accountNumber Int
+  accountName   String   @db.VarChar(100)
+  bankCode      String   @db.VarChar(10)
+  isDeleted     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, accountNumber])
 }
 
 model BlackListedIp {
@@ -194,6 +247,8 @@ enum KycLevel {
 enum AccountStatus {
   ACTIVE
   INACTIVE
+  FLAGGED
+  SUSPENDED
 }
 
 enum Currency {
@@ -236,4 +291,9 @@ enum PaymentEntry {
 enum PaymentMethod {
   CARD
   BANK_TRANSFER
+}
+
+enum WalletType {
+  USD
+  NGN
 }

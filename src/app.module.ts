@@ -11,12 +11,17 @@ import { HttpExceptionFilter } from './helpers/globalExceptionFilter';
 import { MenuModule } from './menu/menu.module';
 import { AdminModule } from './admin/admin.module';
 import { KycModule } from './kyc/kyc.module';
+import { WalletModule } from './wallet/wallet.module';
+import { VirtualCardsModule } from './virtual-cards/virtual-cards.module';
+import { BeneficiaryModule } from './beneficiary/beneficiary.module';
+
 
 @Module({
-  imports: [ConfigModule.forRoot({
-    envFilePath: `.env`,
-    isGlobal: true,
-  }),
+  imports: [
+    ConfigModule.forRoot({
+      envFilePath: `.env`,
+      isGlobal: true,
+    }),
     AuthModule,
     MailModule,
     UsersModule,
@@ -26,6 +31,9 @@ import { KycModule } from './kyc/kyc.module';
     MenuModule,
     AdminModule,
     KycModule,
+    WalletModule,
+    VirtualCardsModule,
+    BeneficiaryModule,
   ],
   controllers: [],
   providers: [

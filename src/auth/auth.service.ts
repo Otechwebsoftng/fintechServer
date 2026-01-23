@@ -46,14 +46,14 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    if (user.status === AccountStatus.INACTIVE) {
-      throw new BadRequestException(
-        'User account is inactive. Contact support.',
-      );
-    }
+    // if (user.status === AccountStatus.INACTIVE) {
+    //   throw new BadRequestException(
+    //     'User account is inactive. Contact support.',
+    //   );
+    // }
 
     const token = await APIFeatures.assignJwtToken(user, this.jwtService);
-    const { password: _, ...userWithoutPassword } = user;
+    const { password: _, transactionPin: __, ...userWithoutPassword } = user;
 
     // return resizeBy
 
@@ -144,7 +144,6 @@ export class AuthService {
   }
 
   async getUserAuthData(user) {
-    console.log({ user });
     const refreshToken = await this.generateRefeshToken(user.id);
     const token = await APIFeatures.assignJwtToken(user, this.jwtService);
     const userWithoutPassword = this.sanitizeUser(user);

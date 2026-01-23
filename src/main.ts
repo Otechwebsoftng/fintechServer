@@ -6,6 +6,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { join } from 'path';
 import * as cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const logger = new Logger('bootstrap');
@@ -14,13 +15,30 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {});
   const configService = app.get<ConfigService>(ConfigService);
 
-  
+  // Security: Enable Helmet for HTTP security headers
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+        },
+      },
+      crossOriginEmbedderPolicy: false, // Required for Swagger
+    }),
+  );
 
   app.setGlobalPrefix('api/v1/');
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       transform: true,
+      forbidNonWhitelisted: true, // Reject unknown properties
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
     }),
   );
 

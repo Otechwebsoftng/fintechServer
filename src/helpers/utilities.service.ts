@@ -1,53 +1,73 @@
 import { Chance } from 'chance';
 import { v4 as uuid } from 'uuid';
 import * as crypto from 'crypto';
+import { v2 as cloudinary } from 'cloudinary';
+import { BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+export interface CloudinaryUploadResponse {
+  public_id: string;
+  url: string;
+  secure_url: string;
+}
 
 export class Utility {
-    static generateUniqueValue = (length = 35, num = false, prefix = null) => {
-        const pool = num
-            ? '0123456789'
-            : 'abcdefghijklmnopqrstuvwxyz1234567890';
-        const chance = new Chance();
-        const uniqueValue = chance.string({ length, pool });
-        return prefix ? `${prefix}_${uniqueValue}` : uniqueValue;
-    };
-    static uuid = () => {
-        return uuid();
-    };
-    static generateSession = () => {
-        return Math.random().toString().replace('0.', '');
-    };
-    static slugify = (strings: string) => {
-        return strings.toLowerCase().split(' ').join('_');
-    };
-    static koboToNaira = value => {
-        let convertedResult: number = value / 100;
-        return convertedResult.toFixed(2);
-    };
 
-    static nairaToKobo = (value: number) => {
-        let convertedResult: number = value * 100;
+    private static isCloudinaryConfigured = false;
 
-        return Math.round((convertedResult + Number.EPSILON) * 100) / 100;
-    };
+  private static ensureCloudinaryConfig() {
+    if (!this.isCloudinaryConfigured) {
+      cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
+      });
+      this.isCloudinaryConfigured = true;
+    }
+  }
 
-    static ucwords = (value: string) => {
-        var str = value;
-        str = str.toLowerCase().replace(/\b[a-z]/g, function (letter) {
-            return letter.toUpperCase();
-        });
-        return str;
-    };
+  static generateUniqueValue = (length = 35, num = false, prefix = null) => {
+    const pool = num ? '0123456789' : 'abcdefghijklmnopqrstuvwxyz1234567890';
+    const chance = new Chance();
+    const uniqueValue = chance.string({ length, pool });
+    return prefix ? `${prefix}_${uniqueValue}` : uniqueValue;
+  };
+  static uuid = () => {
+    return uuid();
+  };
+  static generateSession = () => {
+    return Math.random().toString().replace('0.', '');
+  };
+  static slugify = (strings: string) => {
+    return strings.toLowerCase().split(' ').join('_');
+  };
+  static koboToNaira = (value) => {
+    let convertedResult: number = value / 100;
+    return convertedResult.toFixed(2);
+  };
 
-    static hashString = phrase => {
-        const { APIKEY_SECRET } = process.env;
-        return crypto
-            .createHmac('sha256', APIKEY_SECRET)
-            .update(phrase)
-            .digest('hex');
-    };
+  static nairaToKobo = (value: number) => {
+    let convertedResult: number = value * 100;
 
-      static randomPassword(length = 10, prefix = null) {
+    return Math.round((convertedResult + Number.EPSILON) * 100) / 100;
+  };
+
+  static ucwords = (value: string) => {
+    var str = value;
+    str = str.toLowerCase().replace(/\b[a-z]/g, function (letter) {
+      return letter.toUpperCase();
+    });
+    return str;
+  };
+
+  static hashString = (phrase) => {
+    const { APIKEY_SECRET } = process.env;
+    return crypto
+      .createHmac('sha256', APIKEY_SECRET)
+      .update(phrase)
+      .digest('hex');
+  };
+
+  static randomPassword(length = 10, prefix = null) {
     if (length < 8) {
       console.error(
         'Password length must be at least 8 to include all character types.',
@@ -97,5 +117,62 @@ export class Utility {
     const finalPassword = passwordArray.join('');
 
     return prefix ? `${prefix}_${finalPassword}` : finalPassword;
+  }
+
+  static uploadImage(
+    file: any,
+    folder: string,
+  ): Promise<CloudinaryUploadResponse> {
+    // cloudinary.config({
+    //   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    //   api_key: process.env.CLOUDINARY_API_KEY,
+    //   api_secret: process.env.CLOUDINARY_API_SECRET,
+    // });
+
+    this.ensureCloudinaryConfig();
+
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { folder: `${folder}` },
+        (error, result) => {
+          if (error) {
+            return reject(
+              new BadRequestException('Failed to upload image to cloudinary'),
+            );
+          } else if (result) {
+            const response: CloudinaryUploadResponse = {
+              public_id: result.public_id,
+              url: result.url,
+              secure_url: result.secure_url,
+            };
+            resolve(response);
+          } else {
+            reject(
+              new BadRequestException('No result returned from cloudinary'),
+            );
+          }
+        },
+      );
+      // Ensure file.buffer is passed
+      if (file && file.buffer) {
+        uploadStream.end(file.buffer);
+      } else {
+        reject(new BadRequestException('Invalid file buffer'));
+      }
+    });
+
+    // const imageUrl = result.secure_url;
+    // const publicId = result.public_id;
+  }
+
+  static async destroy(publicId: string): Promise<CloudinaryUploadResponse> {
+    this.ensureCloudinaryConfig();
+
+    try {
+      const result = await cloudinary.uploader.destroy(publicId);
+      return result;
+    } catch (error) {
+      throw new Error(`Cloudinary Deletion Error: ${error.message}`);
+    }
   }
 }
