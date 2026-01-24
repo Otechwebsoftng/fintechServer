@@ -1,13 +1,14 @@
 import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { PermissionService } from './permission.service';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from 'src/auth/guard/permission.guard';
 import { Permissions } from 'src/auth/decorators/permission.decorator';
 
 // @AuditLog({ model: 'user' })
 @ApiTags('Permissions')
+@ApiBearerAuth('JWT-auth')
 @Controller('permission')
 export class PermissionController {
   constructor(private permissionService: PermissionService) {}

@@ -11,7 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiQuery, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/auth/guard/role.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
@@ -24,6 +24,7 @@ import { UpdateAdminRoleDto } from './dto/updateAdminRole.dto';
 
 // @AuditLog({ model: 'user' })
 @ApiTags('Admin')
+@ApiBearerAuth('JWT-auth')
 @Controller('admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}

@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { MenuService } from './menu.service';
 import { AuthGuard } from '@nestjs/passport';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
@@ -9,6 +9,7 @@ import { Permissions } from 'src/auth/decorators/permission.decorator';
 import { CreateMenuDto } from './dto/createMenu.dto';
 
 @ApiTags('Menu')
+@ApiBearerAuth('JWT-auth')
 @Controller('menu')
 export class MenuController {
   constructor(private readonly menuService: MenuService) {}

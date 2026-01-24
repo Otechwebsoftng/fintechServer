@@ -48,10 +48,24 @@ async function bootstrap() {
     .setDescription('FIN_TECh WHITE LABEL API documentation')
     .setVersion('1.0')
     .addTag('API')
-    .addBearerAuth()
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Enter JWT token',
+        in: 'header',
+      },
+      'JWT-auth', // This name here is important for matching up with @ApiBearerAuth() in your controllers.
+    )
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/v1', app, document);
+  SwaggerModule.setup('api/v1', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true, // Keeps the token even after page refresh
+    },
+  });
 
   app.setBaseViewsDir(join(__dirname, '..', 'src/mail/templates'));
   app.setViewEngine('hbs');

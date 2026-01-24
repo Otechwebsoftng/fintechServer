@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 // import { AuditLog } from 'src/audit-log/audit-log.decorator';
 import { RoleService } from './role.service';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from 'src/auth/guard/permission.guard';
 import { Permissions } from 'src/auth/decorators/permission.decorator'
@@ -20,6 +20,7 @@ import { UpdateRoleDto } from './dto/updateRole.dto';
 
 // @AuditLog({ model: 'role' })
 @ApiTags('Role')
+@ApiBearerAuth('JWT-auth')
 @Controller('role')
 export class RoleController {
     constructor(private readonly roleService: RoleService) {}

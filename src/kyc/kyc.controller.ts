@@ -10,12 +10,13 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { KycService } from './kyc.service';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { IdentityType, User } from '@prisma/client';
 
 @ApiTags('Kyc Verification')
+@ApiBearerAuth('JWT-auth')
 @Controller('kyc')
 export class KycController {
   constructor(private readonly kycService: KycService) {}

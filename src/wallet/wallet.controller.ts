@@ -10,7 +10,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { Currency, IdentityType, User } from '@prisma/client';
@@ -19,6 +19,7 @@ import { FundWalletDto } from './dto/fund.dto';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Wallet')
+@ApiBearerAuth('JWT-auth')
 @Controller('wallet')
 export class WalletController {
   constructor(private readonly walletService: WalletService) {}
