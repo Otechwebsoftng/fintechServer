@@ -189,6 +189,38 @@ async function main() {
     },
   ];
 
+  // Create menu items
+  for (const item of sidebarItems) {
+    const menuPermissions = item.permissionSlugs
+      .map((slug) => createdPermissions[slug])
+      .filter((p) => p !== undefined)
+      .map((p) => ({ permission: { connect: { id: p.id } } }));
+
+    // Ensure each sidebar item has a unique slug
+    const slug = item.name.toLowerCase().replace(/\s+/g, '-');
+    const menuItem = await prisma.menuItem.upsert({
+      where: { slug },
+      update: {
+        url: item.url,
+        icon: item.icon,
+        order: item.order,
+        permissions: {
+          deleteMany: {},
+          create: menuPermissions,
+        },
+      },
+      create: {
+        name: item.name,
+        slug,
+        url: item.url,
+        icon: item.icon,
+        order: item.order,
+        permissions: { create: menuPermissions },
+      },
+    });
+    console.log(`Upserted menu item: ${menuItem.name}`);
+  }
+
   //   setting up roles and assigning permissions
 
   const superAdminRole = await prisma.role.upsert({
