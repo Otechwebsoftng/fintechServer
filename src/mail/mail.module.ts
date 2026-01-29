@@ -13,8 +13,8 @@ import { CustomLogger } from 'src/custom.logger';
          transport: {
           host: config.get<string>('EMAIL_HOST'),
           port: config.get<string>('EMAIL_PORT'),
-          secure:
-            config.get<string>('NODE_ENV') === 'production' ? true : false,
+          // secure:
+          //   config.get<string>('NODE_ENV') === 'production' ? true : false,
           auth: {
             user: config.get<string>('EMAIL_USER'),
             pass: config.get<string>('EMAIL_PASS'),
