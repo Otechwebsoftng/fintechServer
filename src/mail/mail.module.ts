@@ -31,7 +31,7 @@ import { CustomLogger } from 'src/custom.logger';
           maxRetries: 3,
         },
         defaults: {
-          from: `WhiteLabel <${config.get<string>('EMAIL_FROM')}>`,
+          from: `WhiteLabel <${config.get<string>('EMAIL_USER')}>`,
         },
         template: {
           dir: join(process.cwd(), 
