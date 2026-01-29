@@ -10,22 +10,20 @@ import { CustomLogger } from 'src/custom.logger';
   imports: [
     MailerModule.forRootAsync({
       useFactory: async (config: ConfigService) => ({
-         transport: {
+        transport: {
           host: config.get<string>('EMAIL_HOST'),
           port: config.get<string>('EMAIL_PORT'),
-          secure:
-            config.get<string>('NODE_ENV') === 'production' ? true : false,
+          secure: false,
           auth: {
             user: config.get<string>('EMAIL_USER'),
             pass: config.get<string>('EMAIL_PASS'),
           },
         },
         defaults: {
-          from: `Whitelist  <${config.get<string>('EMAIL_FROM')}>`,
+          from: `WhiteList ${config.get<string>('EMAIL_FROM')}`,
         },
         template: {
-          dir: join(process.cwd(), 
-          'src/assets/templates'),
+          dir: join(process.cwd(), 'src/assets/templates'),
           adapter: new HandlebarsAdapter(),
           options: {
             strict: true,
