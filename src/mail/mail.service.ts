@@ -62,6 +62,15 @@ export class MailService {
       template,
       context: { ...context, year: new Date().getFullYear() },
     };
-    await this.mailerService.sendMail(mailOptions);
+    
+    try {
+      await this.mailerService.sendMail(mailOptions);
+      this.customLogger.log(`Email sent successfully to ${email}`);
+    } catch (error) {
+      this.customLogger.error(`Failed to send email to ${email}`, error.stack);
+      throw new InternalServerErrorException(
+        `Failed to send email: ${error.message}`,
+      );
+    }
   }
 }

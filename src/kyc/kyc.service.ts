@@ -130,13 +130,18 @@ export class KycService {
     idNumber: string,
     file: any,
   ) {
-    // Validate ID number is provided and has correct format
+    // Validate inputs early
     if (!idNumber?.trim()) {
       throw new BadRequestException('ID number is required');
     }
+    
+    if (!file) {
+      throw new BadRequestException('Identity document image is required');
+    }
+
     this.validateIdNumber(identityType, idNumber);
 
-    // Fetch user first (needed for all subsequent checks)
+    // Fetch user and check prerequisites
     const user = await this.usersService.getOne({ id: userId });
     if (!user) {
       throw new NotFoundException('User not found');
@@ -149,7 +154,7 @@ export class KycService {
       );
     }
 
-    // Check if ID already verified
+    // Early return if already verified
     if (user.identityVerificationStatus === DocumentVerificationStatus.PASSED) {
       return {
         message: 'ID already verified',
@@ -158,17 +163,21 @@ export class KycService {
       };
     }
 
-    // Check if ID number is already used by another user
-    const isIdExisting = await this.usersService.getOne({
-      identityTypeNo: idNumber,
+    // Check if ID number is already used by another user (more efficient query)
+    const existingIdUser = await this.prisma.user.findFirst({
+      where: {
+        identityTypeNo: idNumber,
+        id: { not: userId },
+      },
     });
-    if (isIdExisting) {
+
+    if (existingIdUser) {
       throw new BadRequestException(
         'ID Number already registered to another account',
       );
     }
 
-    // Call verification service
+    // Call verification service BEFORE uploading the document
     const result = await this.verificationService.verifyIdentity(
       identityType,
       idNumber,
@@ -178,31 +187,56 @@ export class KycService {
       throw new BadRequestException('ID verification failed');
     }
 
-    //upload file to storage service and get URL (implementation depends on your storage solution)
-    const uploadedImage = await Utility.uploadImage(file, 'IdentityDocuments');
+    // Only upload file after successful verification
+    let uploadedImage;
+    try {
+      uploadedImage = await Utility.uploadImage(file, 'IdentityDocuments');
+    } catch (error) {
+      this.logger.error('Image upload failed during ID verification', error);
+      throw new BadRequestException('Failed to upload identity document');
+    }
 
     // Update user with verification details
-    const update = await this.prisma.user.update({
-      where: { id: userId },
-      data: {
+    try {
+      const updateData: any = {
         identityType,
         identityTypeNo: idNumber,
         identityVerificationStatus: DocumentVerificationStatus.PASSED,
         kycLevel: KycLevel.LEVEL_2,
-        gender: this.mapGenderToEnum(result.data.gender),
-        dob: result.data.date_of_birth
-          ? new Date(result.data.date_of_birth)
-          : null,
         identityTypeUrl: uploadedImage.url,
         identityTypePublicId: uploadedImage.public_id,
-      },
-    });
+      };
 
-    return {
-      message: `${identityType} verified successfully`,
-      kycLevel: KycLevel.LEVEL_2,
-      idVerified: update.identityVerificationStatus,
-    };
+      // Only update gender and DOB if not already set or if new data is available
+      if (result.data.gender && (!user.gender || user.gender === Gender.NOT_SPECIFIED)) {
+        updateData.gender = this.mapGenderToEnum(result.data.gender);
+      }
+      
+      if (result.data.date_of_birth && !user.dob) {
+        updateData.dob = new Date(result.data.date_of_birth);
+      }
+
+      const update = await this.prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+      });
+
+      return {
+        message: `${identityType} verified successfully`,
+        kycLevel: KycLevel.LEVEL_2,
+        idVerified: update.identityVerificationStatus,
+      };
+    } catch (error) {
+      // Rollback: Delete uploaded image if database update fails
+      try {
+        await Utility.destroy(uploadedImage.public_id);
+      } catch (deleteError) {
+        this.logger.error('Failed to rollback image upload', deleteError);
+      }
+      
+      this.logger.error('Database update failed during ID verification', error);
+      throw new BadRequestException('Failed to update verification status');
+    }
   }
 
   private validateIdNumber(identityType: IdentityType, idNumber: string): void {
