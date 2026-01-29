@@ -56,7 +56,7 @@ export class MailService {
     context,
   ): Promise<void> {
     const mailOptions = {
-      from: `WhiteLabel ${this.configService.get<string>('EMAIL_USER')}`,
+      from: `WhiteLabel ${this.configService.get<string>('EMAIL_FROM')}`,
       to: email,
       subject,
       template,
