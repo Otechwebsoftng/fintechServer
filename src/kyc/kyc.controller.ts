@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -6,6 +7,7 @@ import {
   Patch,
   Post,
   Put,
+  UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -14,6 +16,7 @@ import { ApiOperation, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { IdentityType, User } from '@prisma/client';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Kyc Verification')
 @ApiBearerAuth('JWT-auth')
@@ -50,15 +53,36 @@ export class KycController {
     summary:
       'Verify user Identity Document such as Driver License, National Identity Number, Passport etc',
   })
-
   @Post('/verify-identity')
   @UseGuards(AuthGuard())
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png') {
+          cb(null, true);
+        } else {
+          cb(
+            new BadRequestException('Only .jpg and .png files are allowed!'),
+            false,
+          );
+        }
+      },
+    }),
+  )
   async verifyIdentity(
+    @UploadedFile() file,
     @Body() payload: { identityType: IdentityType; identityNumber: string },
     @CurrentUser() user: User,
   ) {
     const userId = user.id;
     const { identityType, identityNumber } = payload;
-    return this.kycService.verifyIDCard(userId, identityType, identityNumber);
+    return this.kycService.verifyIDCard(
+      userId,
+      identityType,
+      identityNumber,
+      file,
+    );
   }
+
 }

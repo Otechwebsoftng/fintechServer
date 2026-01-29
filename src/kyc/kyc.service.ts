@@ -15,6 +15,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
 import { VerificationService } from 'src/vendors/verification-service';
 import { Gender } from '@prisma/client';
+import { Utility } from 'src/helpers/utilities.service';
 
 @Injectable()
 export class KycService {
@@ -97,7 +98,6 @@ export class KycService {
 
     // Call verification service
     const result = await this.verificationService.verifyBvn(bvn);
-    console.log('BVN verification result:', result);
 
     if (result.status !== 'successful') {
       throw new BadRequestException('BVN verification failed');
@@ -128,6 +128,7 @@ export class KycService {
     userId: string,
     identityType: IdentityType,
     idNumber: string,
+    file: any,
   ) {
     // Validate ID number is provided and has correct format
     if (!idNumber?.trim()) {
@@ -137,7 +138,7 @@ export class KycService {
 
     // Fetch user first (needed for all subsequent checks)
     const user = await this.usersService.getOne({ id: userId });
-    if (!user) { 
+    if (!user) {
       throw new NotFoundException('User not found');
     }
 
@@ -177,6 +178,9 @@ export class KycService {
       throw new BadRequestException('ID verification failed');
     }
 
+    //upload file to storage service and get URL (implementation depends on your storage solution)
+    const uploadedImage = await Utility.uploadImage(file, 'IdentityDocuments');
+
     // Update user with verification details
     const update = await this.prisma.user.update({
       where: { id: userId },
@@ -189,6 +193,8 @@ export class KycService {
         dob: result.data.date_of_birth
           ? new Date(result.data.date_of_birth)
           : null,
+        identityTypeUrl: uploadedImage.url,
+        identityTypePublicId: uploadedImage.public_id,
       },
     });
 

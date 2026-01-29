@@ -14,7 +14,7 @@ export class MailService {
   ) {}
 
   async welcomeMail(email: string, firstName: string, token: number) {
-    const subject = 'Welcome to ChatHub';
+    const subject = 'Welcome';
     this.customLogger.log(`welcome email sent to ${email}`);
     await this.sendDefaultMail(email, subject, 'welcome', {
       email,
@@ -56,7 +56,7 @@ export class MailService {
     context,
   ): Promise<void> {
     const mailOptions = {
-      from: `Allies ${this.configService.get<string>('EMAIL_FROM')}`,
+      from: `WhiteLabel ${this.configService.get<string>('EMAIL_FROM')}`,
       to: email,
       subject,
       template,

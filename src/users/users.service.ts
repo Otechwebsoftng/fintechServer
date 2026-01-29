@@ -19,6 +19,7 @@ import * as bcrypt from 'bcrypt';
 import { SignUpDto } from './dto/signup.dto';
 import { TransactionPinDto } from './dto/transactionPin.dto';
 import { WalletService } from 'src/wallet/wallet.service';
+import { isEmail } from 'class-validator';
 const PASSWORD_SALT = 10;
 
 @Injectable()
@@ -130,6 +131,7 @@ export class UsersService {
         transactionPin,
         isDeleted,
         isEmailVerified,
+        otp,
         ...userWithoutPassword
       } = user;
       return userWithoutPassword;
@@ -174,7 +176,7 @@ export class UsersService {
   }
 
   async createUser(payload: SignUpDto) {
-    const { firstName, lastName, email, phoneNumber } = payload;
+    const { email, phoneNumber } = payload;
 
     const [emailExist, phoneExist] = await Promise.all([
       this.getOne({ email }),
@@ -228,7 +230,14 @@ export class UsersService {
     }
 
     const token = await APIFeatures.assignJwtToken(newUser, this.jwtService);
-    const result = this.sanitizeUser(newUser);
+    const result = {
+      id: newUser.id,
+      email: newUser.email,
+      firstName: newUser.firstName,
+      lastName: newUser.lastName,
+      phoneNumber: newUser.phoneNumber,
+      isEmailVerified: newUser.isEmailVerified,
+    };
 
     return {
       token,
@@ -252,13 +261,12 @@ export class UsersService {
   async activateAccount(user: User, activateAccountDto: ActivateAccountDto) {
     const { otp } = activateAccountDto;
     const currentTime = new Date();
-    const findUser = await this.prisma.user.findFirst({
-      where: {
-        id: user.id,
-        otp: otp,
-        otpExpiresIn: {
-          gte: new Date(currentTime.getTime()),
-        },
+    
+    const findUser = await this.getOne({
+      id: user.id,
+      otp: otp,
+      otpExpiresIn: {
+        gte: new Date(currentTime.getTime()),
       },
     });
 
@@ -275,9 +283,17 @@ export class UsersService {
         isEmailVerified: true,
       },
     });
+    const result = {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      firstName: updatedUser.firstName,
+      lastName: updatedUser.lastName,
+      phoneNumber: updatedUser.phoneNumber,
+      isEmailVerified: updatedUser.isEmailVerified,
+    };
 
-    const token = await APIFeatures.assignJwtToken(user, this.jwtService);
-    return { token, data: this.sanitizeUser(updatedUser) };
+    const token = await APIFeatures.assignJwtToken(result, this.jwtService);
+    return { token, data: result };
   }
 
   async resendOTP(user) {
@@ -289,7 +305,14 @@ export class UsersService {
 
     await this.mailService.welcomeMail(user.email, user.username, otp.token);
 
-    const result = this.sanitizeUser(userData);
+     const result = {
+      id: userData.id,
+      email: userData.email,
+      firstName: userData.firstName,
+      lastName: userData.lastName,
+      phoneNumber: userData.phoneNumber,
+      isEmailVerified: userData.isEmailVerified,
+    };
 
     return { message: 'OTP Sent Successfully', data: result };
   }
@@ -399,7 +422,19 @@ export class UsersService {
 
   sanitizeUser(user) {
     if (!user) return {};
-    const { password, transactionPin, isDeleted, ...sanitizedUser } = user;
+    const {
+      isEmailVerified,
+      password,
+      transactionPin,
+      isDeleted,
+      otp,
+      status,
+      isAdminPasswordChanged,
+      beneficiaries,
+      createdUsers,
+      updatedUsers,
+      ...sanitizedUser
+    } = user;
     return sanitizedUser;
   }
 }

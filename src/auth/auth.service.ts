@@ -55,9 +55,20 @@ export class AuthService {
     const token = await APIFeatures.assignJwtToken(user, this.jwtService);
     const { password: _, transactionPin: __, ...userWithoutPassword } = user;
 
+    const result = {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phoneNumber: user.phoneNumber,
+      isEmailVerified: user.isEmailVerified,
+    };
+
+    
+
     // return resizeBy
 
-    return await this.getUserAuthData(userWithoutPassword);
+    return await this.getUserAuthData(result);
   }
 
   async adminLogin(loginDto: LoginDto) {
@@ -84,6 +95,18 @@ export class AuthService {
     const token = await APIFeatures.assignJwtToken(user, this.jwtService);
     const { password: _, ...userWithoutPassword } = user;
 
+      const result = {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phoneNumber: user.phoneNumber,
+      isEmailVerified: user.isEmailVerified,
+      role: user.role,
+      isAdminPasswordChanged: user.isAdminPasswordChanged,
+    };
+    
+
     const otp = await APIFeatures.generateOtp();
 
     await this.prisma.user.update({
@@ -109,7 +132,7 @@ export class AuthService {
       );
     }
 
-    return { token, data: userWithoutPassword };
+    return { token, data: result };
   }
 
   async verifyAdmin(user: User, activateAccountDto: ActivateAccountDto) {
@@ -143,7 +166,7 @@ export class AuthService {
     return { token, user: this.sanitizeUser(updatedUser) };
   }
 
-  async getUserAuthData(user) {
+  async getUserAuthData(user:any) {
     const refreshToken = await this.generateRefeshToken(user.id);
     const token = await APIFeatures.assignJwtToken(user, this.jwtService);
     const userWithoutPassword = this.sanitizeUser(user);
@@ -207,7 +230,7 @@ export class AuthService {
     return this.getUserAuthData(userWithoutPassword);
   }
 
-  sanitizeUser(user) {
+sanitizeUser(user) {
     if (!user) return {};
     const { password, isDeleted, transactionPin, ...sanitizedUser } = user;
     return sanitizedUser;

@@ -45,6 +45,7 @@ model User {
   identityType               IdentityType?
   identityTypeNo             String?
   identityTypeUrl            String?
+  identityTypePublicId       String?
   identityVerificationStatus DocumentVerificationStatus @default(NOT_VERIFIED)
   facialVerificationStatus   DocumentVerificationStatus @default(NOT_VERIFIED)
   status                     AccountStatus              @default(INACTIVE)
