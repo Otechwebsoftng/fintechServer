@@ -70,6 +70,7 @@ export class MailService {
       this.customLogger.error(`Failed to send email to ${email}`, error.stack);
       throw new InternalServerErrorException(
         `Failed to send email: ${error.message}`,
+        `Failed to send email: ${error.stack}`,
       );
     }
   }

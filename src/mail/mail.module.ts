@@ -21,7 +21,7 @@ import { CustomLogger } from 'src/custom.logger';
           },
         },
         defaults: {
-          from: `Whitelist  <${config.get<string>('EMAIL_FROM')}>`,
+          from: `Whitelist  <${config.get<string>('EMAIL_USER')}>`,
         },
         template: {
           dir: join(process.cwd(), 
