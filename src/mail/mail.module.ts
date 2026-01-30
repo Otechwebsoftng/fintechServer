@@ -9,39 +9,36 @@ import { CustomLogger } from 'src/custom.logger';
 @Module({
   imports: [
     MailerModule.forRootAsync({
-      useFactory: async (config: ConfigService) => ({
-        transport: {
-          host: config.get<string>('ZOHO_HOST'),
-          port: config.get<string>('ZOHO_PORT'),
-          secure: true,
-          // config.get<string>('NODE_ENV') === 'production' ? true : false,
-          auth: {
-            user: config.get<string>('EMAIL_USER'),
-            pass: config.get<string>('EMAIL_PASS'),
+      useFactory: async (config: ConfigService) => {
+        const host = config.get<string>('EMAIL_HOST') || 'smtp.gmail.com';
+        const port = parseInt(config.get<string>('EMAIL_PORT') || '587', 10);
+        const isSecure = port === 465;
+
+        return {
+          transport: {
+            host: host,
+            port: port,
+            secure: isSecure, // true for 465 (SSL), false for 587 (TLS)
+            auth: {
+              user: config.get<string>('EMAIL_USER'),
+              pass: config.get<string>('EMAIL_PASS'),
+            },
+            tls: {
+              rejectUnauthorized: false,
+            },
           },
-          tls: {
-            rejectUnauthorized: false,
+          defaults: {
+            from: `Whitelist <${config.get<string>('EMAIL_FROM')}>`,
           },
-          // Added connection timeout and retry options
-          connectionTimeout: 30000, // 30 seconds
-          socketTimeout: 30000, // 30 seconds
-          greetingTimeout: 30000, // 30 seconds
-          pool: true, // Use connection pooling
-          maxConnections: 5, // Maximum connections in pool
-          maxRetries: 3,
-        },
-        defaults: {
-          from: `WhiteLabel <${config.get<string>('EMAIL_USER')}>`,
-        },
-        template: {
-          dir: join(process.cwd(), 
-          'src/assets/templates'),
-          adapter: new HandlebarsAdapter(),
-          options: {
-            strict: true,
+          template: {
+            dir: join(process.cwd(), 'src/assets/templates'),
+            adapter: new HandlebarsAdapter(),
+            options: {
+              strict: true,
+            },
           },
-        },
-      }),
+        };
+      },
       inject: [ConfigService],
     }),
   ],

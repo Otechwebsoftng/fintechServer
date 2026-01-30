@@ -303,7 +303,7 @@ export class UsersService {
       data: { otp: otp.token, otpExpiresIn: otp.otpExpires },
     });
 
-    await this.mailService.welcomeMail(user.email, user.username, otp.token);
+    await this.mailService.welcomeMail(user.email, user.firstName ?? '', otp.token);
 
      const result = {
       id: userData.id,
