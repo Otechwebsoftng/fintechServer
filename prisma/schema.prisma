@@ -48,6 +48,8 @@ model User {
   identityTypePublicId       String?
   identityVerificationStatus DocumentVerificationStatus @default(NOT_VERIFIED)
   facialVerificationStatus   DocumentVerificationStatus @default(NOT_VERIFIED)
+  facialVerificationUrl      String?
+  facialVerificationPublicId String?
   status                     AccountStatus              @default(INACTIVE)
   isEmailVerified            Boolean                    @default(false)
   isAdminPasswordChanged     Boolean?                   @default(false)
