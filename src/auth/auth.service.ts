@@ -37,8 +37,9 @@ export class AuthService {
       userType: UserType.USER,
     });
 
-    if (!user) throw new NotFoundException('Invalid email or Password!');
+    console.log({user})
 
+    if (!user) throw new NotFoundException('Invalid email or Password!');
     console.log({here:2})
 
     const isPasswordMatch = await bcrypt.compare(
@@ -48,6 +49,7 @@ export class AuthService {
       console.log({isPasswordMatch})
     
     if (!isPasswordMatch) {
+      console.log({fail: true})
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -70,7 +72,7 @@ export class AuthService {
       isEmailVerified: user.isEmailVerified,
     };
 
-    
+    console.log({result})
 
     // return resizeBy
 
@@ -173,8 +175,11 @@ export class AuthService {
   }
 
   async getUserAuthData(user:any) {
+    console.log({AuthData: user})
     const refreshToken = await this.generateRefeshToken(user.id);
+    console.log({refreshToken: refreshToken})
     const token = await APIFeatures.assignJwtToken(user, this.jwtService);
+    console.log({token: token})
     const userWithoutPassword = this.sanitizeUser(user);
     return { user: userWithoutPassword, token, refreshToken };
   }
