@@ -30,30 +30,22 @@ export class AuthService {
   ) {}
 
   async login(loginDto: LoginDto) {
-
-    console.log({here: 1})
     const user = await this.usersService.getOne({
       email: loginDto.email,
       userType: UserType.USER,
     });
 
-    console.log({user})
-
     if (!user) throw new NotFoundException('Invalid email or Password!');
-    console.log({here:2})
 
     const isPasswordMatch = await bcrypt.compare(
       loginDto.password,
       user.password,
     );
-      console.log({isPasswordMatch})
-    
+
     if (!isPasswordMatch) {
-      console.log({fail: true})
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    console.log({here:3})
     // if (user.status === AccountStatus.INACTIVE) {
     //   throw new BadRequestException(
     //     'User account is inactive. Contact support.',
@@ -71,8 +63,6 @@ export class AuthService {
       phoneNumber: user.phoneNumber,
       isEmailVerified: user.isEmailVerified,
     };
-
-    console.log({result})
 
     // return resizeBy
 
@@ -97,13 +87,15 @@ export class AuthService {
     }
 
     if (user.status === AccountStatus.INACTIVE) {
-      throw new BadRequestException('User account is inactive. Contact support.');
+      throw new BadRequestException(
+        'User account is inactive. Contact support.',
+      );
     }
 
     const token = await APIFeatures.assignJwtToken(user, this.jwtService);
     const { password: _, ...userWithoutPassword } = user;
 
-      const result = {
+    const result = {
       id: user.id,
       email: user.email,
       firstName: user.firstName,
@@ -113,7 +105,6 @@ export class AuthService {
       role: user.role,
       isAdminPasswordChanged: user.isAdminPasswordChanged,
     };
-    
 
     const otp = await APIFeatures.generateOtp();
 
@@ -174,27 +165,16 @@ export class AuthService {
     return { token, user: this.sanitizeUser(updatedUser) };
   }
 
-  async getUserAuthData(user:any) {
-    console.log({AuthData: user})
-
-    console.log({userId: user.id})
+  async getUserAuthData(user: any) {
     const refreshToken = await this.generateRefeshToken(user.id);
-    console.log({refreshToken: refreshToken})
     const token = await APIFeatures.assignJwtToken(user, this.jwtService);
-    console.log({token: token})
     const userWithoutPassword = this.sanitizeUser(user);
     return { user: userWithoutPassword, token, refreshToken };
   }
 
   async generateRefeshToken(userId: string) {
-
-    console.log({Generate: "Generating refresh token" })
-
-    console.log({userId: userId})
     // expire existing token
     const expiredDate = new Date().setDate(new Date().getDate() - 1);
-
-    console.log({expiredDate: new Date(expiredDate).toISOString()})
 
     await this.prisma.refreshToken.updateMany({
       where: { userId },
@@ -207,13 +187,9 @@ export class AuthService {
         Number(this.configService.get<string>('REFRESH_TOKEN_EXPIRY')),
     );
 
-    console.log({expiresAt: expiresAt.toISOString()})
-
     const token = Utility.uuid();
 
-    console.log({token: token})
     const hashedToken = Utility.hashString(token);
-    console.log({hashedToken: hashedToken})
 
     await this.prisma.refreshToken.create({
       data: { hashedToken, userId, expiresAt },
@@ -254,7 +230,7 @@ export class AuthService {
     return this.getUserAuthData(userWithoutPassword);
   }
 
-sanitizeUser(user) {
+  sanitizeUser(user) {
     if (!user) return {};
     const { password, isDeleted, transactionPin, ...sanitizedUser } = user;
     return sanitizedUser;
