@@ -176,6 +176,8 @@ export class AuthService {
 
   async getUserAuthData(user:any) {
     console.log({AuthData: user})
+
+    console.log({userId: user.id})
     const refreshToken = await this.generateRefeshToken(user.id);
     console.log({refreshToken: refreshToken})
     const token = await APIFeatures.assignJwtToken(user, this.jwtService);
@@ -185,8 +187,14 @@ export class AuthService {
   }
 
   async generateRefeshToken(userId: string) {
+
+    console.log({Generate: "Generating refresh token" })
+
+    console.log({userId: userId})
     // expire existing token
     const expiredDate = new Date().setDate(new Date().getDate() - 1);
+
+    console.log({expiredDate: new Date(expiredDate).toISOString()})
 
     await this.prisma.refreshToken.updateMany({
       where: { userId },
@@ -199,8 +207,13 @@ export class AuthService {
         Number(this.configService.get<string>('REFRESH_TOKEN_EXPIRY')),
     );
 
+    console.log({expiresAt: expiresAt.toISOString()})
+
     const token = Utility.uuid();
+
+    console.log({token: token})
     const hashedToken = Utility.hashString(token);
+    console.log({hashedToken: hashedToken})
 
     await this.prisma.refreshToken.create({
       data: { hashedToken, userId, expiresAt },
