@@ -157,6 +157,8 @@ model Payment {
   currency          Currency            @default(NGN)
   description       String?
   reference         String?             @unique
+  merchant_order_id String?             @db.VarChar(64)
+  request_id        String?             @unique @db.VarChar(64)
   amount            Float?
   paymentEntry      PaymentEntry?       @default(CREDIT)
   paymentMethod     PaymentMethod       @default(CARD)
@@ -171,7 +173,7 @@ model Payment {
   updatedAt         DateTime?
   walletTransaction WalletTransaction[]
 
-  @@index([userId, reference])
+  @@index([userId, reference, request_id])
 }
 
 model Wallet {

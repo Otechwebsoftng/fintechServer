@@ -31,6 +31,7 @@ export class AuthService {
 
   async login(loginDto: LoginDto) {
 
+    console.log({here: 1})
     const user = await this.usersService.getOne({
       email: loginDto.email,
       userType: UserType.USER,
@@ -38,22 +39,27 @@ export class AuthService {
 
     if (!user) throw new NotFoundException('Invalid email or Password!');
 
+    console.log({here:2})
+
     const isPasswordMatch = await bcrypt.compare(
       loginDto.password,
       user.password,
     );
+      console.log({isPasswordMatch})
+    
     if (!isPasswordMatch) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    console.log({here:3})
     // if (user.status === AccountStatus.INACTIVE) {
     //   throw new BadRequestException(
     //     'User account is inactive. Contact support.',
     //   );
     // }
 
-    const token = await APIFeatures.assignJwtToken(user, this.jwtService);
-    const { password: _, transactionPin: __, ...userWithoutPassword } = user;
+    // const token = await APIFeatures.assignJwtToken(user, this.jwtService);
+    // const { password: _, transactionPin: __, ...userWithoutPassword } = user;
 
     const result = {
       id: user.id,
