@@ -22,6 +22,7 @@ import { ResetPasswordDto } from './dto/resetPassword.dto';
 import { Sign } from 'crypto';
 import { SignUpDto } from './dto/signup.dto';
 import { TransactionPinDto } from './dto/transactionPin.dto';
+import { UserTageDto } from './dto/userTag.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth('JWT-auth')
@@ -80,17 +81,6 @@ export class UsersController {
     return this.usersService.getAll(page, pageSize, status, search, country, verificationLevel);
   }
 
-  @Get(':userId')
-  @ApiOperation({
-    description: ' View a user Account',
-    summary: 'Admin can view a user Account',
-  })
-  @UseGuards(AuthGuard(), PermissionsGuard)
-  @Permissions('super_admin.full_access', 'support_admin')
-  async viewUser(@Param('userId') userId: string) {
-    return this.usersService.viewOne(userId);
-  }
-
   @Patch('/set-transaction-pin')
   @UseGuards(AuthGuard())
   @ApiOperation({
@@ -128,6 +118,20 @@ export class UsersController {
   ): Promise<{}> {
     return this.usersService.createUser(payload);
   }
+
+  @Patch('/create-user-tag')
+  @ApiOperation({
+    description: 'Create a new user tag',
+    summary: 'Allows user to create a user tag',
+  })
+  @UseGuards(AuthGuard())
+  async createUserTag(
+    @Body() payload: UserTageDto,
+    @CurrentUser() user: User,
+  ): Promise<{}> {
+    return this.usersService.createUserTag(user.id, payload);
+  }
+
   @Patch('/resend-otp')
   @ApiOperation({ summary: 'Resend OTP to a user' })
   @UseGuards(AuthGuard())
@@ -168,5 +172,17 @@ export class UsersController {
     @Param('otp') otp: string,
   ) {
     return this.usersService.resetPassword(resetPasswordDto, Number(otp));
+  }
+
+  // Move parameterized route to the end to avoid catching specific routes
+  @Get(':userId')
+  @ApiOperation({
+    description: ' View a user Account',
+    summary: 'Admin can view a user Account',
+  })
+  @UseGuards(AuthGuard(), PermissionsGuard)
+  @Permissions('super_admin.full_access', 'support_admin')
+  async viewUser(@Param('userId') userId: string) {
+    return this.usersService.viewOne(userId);
   }
 }

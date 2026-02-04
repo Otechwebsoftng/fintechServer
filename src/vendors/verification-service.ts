@@ -141,4 +141,13 @@ export class VerificationService {
 
     return httpService.get(url);
   }
+
+  private async sendPostRequest(path: string, body?: any) {
+    const url = this.baseUrl + path;
+    const httpService = new APIRequest({
+      headers: this.headers,
+    });
+
+    return httpService.post(url, body);
+  }
 }

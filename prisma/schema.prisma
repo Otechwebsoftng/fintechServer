@@ -26,6 +26,7 @@ model User {
   firstName                  String
   lastName                   String
   otherName                  String?
+  userTag                    String?                    @unique
   email                      String                     @unique
   phoneNumber                String?                    @unique
   password                   String

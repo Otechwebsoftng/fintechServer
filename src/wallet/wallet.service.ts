@@ -128,14 +128,12 @@ export class WalletService {
   }
 
   async fundOwnWallet(userId: string, payload: FundWalletDto) {
-    // Validate amount
+  
     if (payload.amount <= 0) {
       throw new BadRequestException('Amount must be greater than zero');
     }
 
-    // Record the payment and the wallet transaction using a transaction
     const result = await this.prisma.$transaction(async (tx) => {
-      // Fetch wallet inside transaction for atomicity
       const wallet = await tx.wallet.findFirst({
         where: { userId, currency: payload.currency },
       });
@@ -146,7 +144,6 @@ export class WalletService {
         );
       }
 
-      // Create payment record
       const payment = await tx.payment.create({
         data: {
           userId: payload.userId,

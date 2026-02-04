@@ -12,6 +12,7 @@ import { MailService } from 'src/mail/mail.service';
 import { MailModule } from 'src/mail/mail.module';
 import { CustomLogger } from 'src/custom.logger';
 import { WalletService } from 'src/wallet/wallet.service';
+import { AirwallexService } from 'src/vendors/airwallex.service';
 
 @Module({
   imports: [
@@ -39,7 +40,8 @@ import { WalletService } from 'src/wallet/wallet.service';
     PrismaService,
     CustomLogger,
     JwtStrategy,
-    WalletService
+    WalletService,
+    AirwallexService,
   ],
   controllers: [AuthController],
   exports: [AuthService, JwtStrategy, PassportModule],

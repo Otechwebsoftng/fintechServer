@@ -20,6 +20,8 @@ import { SignUpDto } from './dto/signup.dto';
 import { TransactionPinDto } from './dto/transactionPin.dto';
 import { WalletService } from 'src/wallet/wallet.service';
 import { isEmail } from 'class-validator';
+import { AirwallexService } from 'src/vendors/airwallex.service';
+import { UserTageDto } from './dto/userTag.dto';
 const PASSWORD_SALT = 10;
 
 @Injectable()
@@ -31,6 +33,7 @@ export class UsersService {
     @Inject(forwardRef(() => WalletService))
     private readonly walletService: WalletService,
     private readonly logger: CustomLogger,
+    private readonly airwallexService: AirwallexService,
   ) {}
 
   async getAll(
@@ -229,6 +232,8 @@ export class UsersService {
       this.logger.error('Welcome email failed to send', err);
     }
 
+    this.airwallexService.authenticate()
+
     const token = await APIFeatures.assignJwtToken(newUser, this.jwtService);
     const result = {
       id: newUser.id,
@@ -243,6 +248,24 @@ export class UsersService {
       token,
       data: result,
     };
+  }
+
+  async createUserTag(userId: string, payload:UserTageDto) {
+
+    const sanitizedTag = '@' + payload.userTag.toLowerCase().trim();
+
+    const updateUserTag = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        userTag: sanitizedTag,
+      },
+    });
+
+    return {
+      message: 'User tag created successfully',
+      data: updateUserTag.userTag,
+    };
+
   }
 
   async setTransactionPin(user: User, payload: TransactionPinDto) {

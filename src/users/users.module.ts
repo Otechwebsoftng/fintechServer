@@ -8,6 +8,7 @@ import { CustomLogger } from 'src/custom.logger';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { MailModule } from 'src/mail/mail.module';
 import { WalletModule } from 'src/wallet/wallet.module';
+import { AirwallexService } from 'src/vendors/airwallex.service';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { WalletModule } from 'src/wallet/wallet.module';
     
   ],
   controllers: [UsersController],
-  providers: [UsersService, JwtService, CustomLogger],
+  providers: [UsersService, JwtService, AirwallexService, CustomLogger],
   exports: [UsersService],
 })
 export class UsersModule {}

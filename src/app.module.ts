@@ -12,8 +12,9 @@ import { MenuModule } from './menu/menu.module';
 import { AdminModule } from './admin/admin.module';
 import { KycModule } from './kyc/kyc.module';
 import { WalletModule } from './wallet/wallet.module';
-import { VirtualCardsModule } from './virtual-cards/virtual-cards.module';
+// import { VirtualCardsModule } from './virtual-cards/virtual-cards.module';
 import { BeneficiaryModule } from './beneficiary/beneficiary.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 
 @Module({
@@ -32,8 +33,9 @@ import { BeneficiaryModule } from './beneficiary/beneficiary.module';
     AdminModule,
     KycModule,
     WalletModule,
-    VirtualCardsModule,
+    // VirtualCardsModule,
     BeneficiaryModule,
+    WebhooksModule,
   ],
   controllers: [],
   providers: [
