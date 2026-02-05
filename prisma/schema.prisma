@@ -37,7 +37,8 @@ model User {
   city                       String?
   state                      String?
   country                    String?
-  otp                        Int?
+  otp                        String?
+  otpType                    OtpType?
   otpExpiresIn               DateTime?
   userType                   UserType                   @default(USER)
   kycLevel                   KycLevel                   @default(LEVEL_0)
@@ -167,6 +168,7 @@ model Payment {
   failed_at         DateTime?
   failure_reason    String?
   failure_code      String?
+  metadata          Json?
   user              User?               @relation(fields: [userId], references: [id])
   isDeleted         Boolean             @default(false)
   createdAt         DateTime            @default(now())
@@ -302,4 +304,11 @@ enum PaymentMethod {
 enum WalletType {
   USD
   NGN
+}
+
+enum OtpType {
+  SIGN_UP
+  CHANGE_PASSWORD
+  FORGOT_PASSWORD
+  ADMIN_LOGIN
 }

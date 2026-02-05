@@ -148,6 +148,8 @@ export class WalletService {
         data: {
           userId: payload.userId,
           amount: payload.amount,
+          merchant_order_id: payload.merchant_order_id,
+          request_id: payload.request_id,
           currency: payload.currency,
           description: payload.description,
           reference: payload.reference,

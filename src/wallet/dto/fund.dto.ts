@@ -43,4 +43,18 @@ export class FundWalletDto {
   })
   @IsEnum(PaymentMethod)
   readonly paymentMethod: PaymentMethod;
+
+  @ApiProperty({
+    description:
+      'Merchant order ID associated with the payment',
+  })
+  @IsString()
+  readonly merchant_order_id: string;
+
+  @ApiProperty({
+    description:
+      'Request ID associated with the payment',
+  })
+  @IsString()
+  readonly request_id: string;
 }

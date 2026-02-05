@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "OtpType" ADD VALUE 'ADMIN_LOGIN';

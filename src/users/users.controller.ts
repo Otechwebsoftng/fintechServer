@@ -22,7 +22,7 @@ import { ResetPasswordDto } from './dto/resetPassword.dto';
 import { Sign } from 'crypto';
 import { SignUpDto } from './dto/signup.dto';
 import { TransactionPinDto } from './dto/transactionPin.dto';
-import { UserTageDto } from './dto/userTag.dto';
+import { UserTagDto } from './dto/userTag.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth('JWT-auth')
@@ -126,7 +126,7 @@ export class UsersController {
   })
   @UseGuards(AuthGuard())
   async createUserTag(
-    @Body() payload: UserTageDto,
+    @Body() payload: UserTagDto,
     @CurrentUser() user: User,
   ): Promise<{}> {
     return this.usersService.createUserTag(user.id, payload);
@@ -150,16 +150,16 @@ export class UsersController {
   }
 
   // Reset Password
-  @Patch('verify-password-otp')
-  @ApiOperation({
-    description: ' Verify OTP for password reset',
-    summary: 'Users can verify OTP for password reset.',
-  })
-  async verifyPassword(
-    @Body() payload: ActivateAccountDto
-  ) {
-    return this.usersService.passwordOtpVerify(Number(payload.otp));
-  }
+  // @Patch('verify-password-otp')
+  // @ApiOperation({
+  //   description: ' Verify OTP for password reset',
+  //   summary: 'Users can verify OTP for password reset.',
+  // })
+  // async verifyPassword(
+  //   @Body() payload: ActivateAccountDto
+  // ) {
+  //   return this.usersService.passwordOtpVerify(payload);
+  // }
 
   // Reset Password
   @Patch('reset-password/:otp')
@@ -171,7 +171,7 @@ export class UsersController {
     @Body() resetPasswordDto: ResetPasswordDto,
     @Param('otp') otp: string,
   ) {
-    return this.usersService.resetPassword(resetPasswordDto, Number(otp));
+    return this.usersService.resetPassword(resetPasswordDto, otp);
   }
 
   // Move parameterized route to the end to avoid catching specific routes

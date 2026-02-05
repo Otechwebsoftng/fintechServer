@@ -11,13 +11,14 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { MailService } from 'src/mail/mail.service';
 import { CustomLogger } from 'src/custom.logger';
-import { AccountStatus, User, UserType } from '@prisma/client';
+import { AccountStatus, OtpType, User, UserType } from '@prisma/client';
 import { use } from 'passport';
 import APIFeatures from 'src/utils/apiFeatures.utils';
 import { ActivateAccountDto } from 'src/users/dto/activateAccount.dto';
 import { Utility } from 'src/helpers/utilities.service';
 import { ConfigService } from '@nestjs/config';
-
+import { config } from 'process';
+const PASSWORD_SALT = 10;
 @Injectable()
 export class AuthService {
   constructor(
@@ -107,13 +108,15 @@ export class AuthService {
     };
 
     const otp = await APIFeatures.generateOtp();
+    const hashOtp = await bcrypt.hash(otp.token.toString(), PASSWORD_SALT);
 
     await this.prisma.user.update({
       where: {
         email: user.email,
       },
       data: {
-        otp: otp.token,
+        otp: hashOtp,
+        otpType:OtpType.ADMIN_LOGIN,
         otpExpiresIn: otp.otpExpires,
       },
     });
@@ -135,7 +138,15 @@ export class AuthService {
   }
 
   async verifyAdmin(user: User, activateAccountDto: ActivateAccountDto) {
+    if(activateAccountDto.otpType !== OtpType.ADMIN_LOGIN){
+      throw new BadRequestException('Invalid Otp Type')
+    }
     const { otp } = activateAccountDto;
+    const decryptOtp = await bcrypt.compare(activateAccountDto.otp, user.otp)
+
+    if (!decryptOtp) {
+      throw new BadRequestException('Expired or incorrect "OTP"');
+    }
     const currentTime = new Date();
     const findUser = await this.prisma.user.findFirst({
       where: {

@@ -7,7 +7,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { AccountStatus, KycLevel, User, UserType } from '@prisma/client';
+import {
+  AccountStatus,
+  KycLevel,
+  OtpType,
+  User,
+  UserType,
+} from '@prisma/client';
 import { ActivateAccountDto } from './dto/activateAccount.dto';
 import APIFeatures from 'src/utils/apiFeatures.utils';
 import { JwtService } from '@nestjs/jwt';
@@ -19,9 +25,8 @@ import * as bcrypt from 'bcrypt';
 import { SignUpDto } from './dto/signup.dto';
 import { TransactionPinDto } from './dto/transactionPin.dto';
 import { WalletService } from 'src/wallet/wallet.service';
-import { isEmail } from 'class-validator';
 import { AirwallexService } from 'src/vendors/airwallex.service';
-import { UserTageDto } from './dto/userTag.dto';
+import { UserTagDto } from './dto/userTag.dto';
 const PASSWORD_SALT = 10;
 
 @Injectable()
@@ -198,15 +203,18 @@ export class UsersService {
 
     const otp = await APIFeatures.generateOtp();
 
+    const hashOtp = await bcrypt.hash(otp.token.toString(), salt);
+
     const newUser = await this.prisma.$transaction(async (tx) => {
       // Create user
       const user = await tx.user.create({
         data: {
           ...payload,
           password: hashPassword,
-          otp: otp.token,
+          otp: hashOtp,
           otpExpiresIn: otp.otpExpires,
           userType: payload.userType || UserType.USER,
+          otpType: OtpType.SIGN_UP,
         },
       });
 
@@ -232,7 +240,7 @@ export class UsersService {
       this.logger.error('Welcome email failed to send', err);
     }
 
-    this.airwallexService.authenticate()
+    // this.airwallexService.authenticate();
 
     const token = await APIFeatures.assignJwtToken(newUser, this.jwtService);
     const result = {
@@ -250,8 +258,7 @@ export class UsersService {
     };
   }
 
-  async createUserTag(userId: string, payload:UserTageDto) {
-
+  async createUserTag(userId: string, payload: UserTagDto) {
     const sanitizedTag = '@' + payload.userTag.toLowerCase().trim();
 
     const updateUserTag = await this.prisma.user.update({
@@ -265,7 +272,6 @@ export class UsersService {
       message: 'User tag created successfully',
       data: updateUserTag.userTag,
     };
-
   }
 
   async setTransactionPin(user: User, payload: TransactionPinDto) {
@@ -281,38 +287,44 @@ export class UsersService {
     return { message: 'Transaction pin set successfully' };
   }
 
-  async activateAccount(user: User, activateAccountDto: ActivateAccountDto) {
-    const { otp } = activateAccountDto;
-    const currentTime = new Date();
-    
-    const findUser = await this.getOne({
-      id: user.id,
-      otp: otp,
-      otpExpiresIn: {
-        gte: new Date(currentTime.getTime()),
-      },
-    });
+  async activateAccount(user: User, payload: ActivateAccountDto) {
+    const { otp, otpType } = payload;
 
-    if (!findUser) {
+    if (otpType !== OtpType.SIGN_UP) {
+      throw new BadRequestException('Invalid OTP type for account activation');
+    }
+
+    const currentTime = new Date();
+
+    const decryptOtp = await bcrypt.compare(payload.otp, user.otp);
+
+    if (!decryptOtp) {
       throw new BadRequestException('Expired or incorrect "OTP"');
     }
 
-    const updatedUser = await this.prisma.user.update({
-      where: { id: user.id },
+    const update = await this.prisma.user.update({
+      where: {
+        id: user.id,
+        otpType: OtpType.SIGN_UP,
+        otpExpiresIn: { gte: new Date(currentTime.getTime()) },
+        status: AccountStatus.INACTIVE,
+      },
       data: {
         otp: null,
         otpExpiresIn: null,
+        otpType: null,
         status: AccountStatus.ACTIVE,
         isEmailVerified: true,
       },
     });
+
     const result = {
-      id: updatedUser.id,
-      email: updatedUser.email,
-      firstName: updatedUser.firstName,
-      lastName: updatedUser.lastName,
-      phoneNumber: updatedUser.phoneNumber,
-      isEmailVerified: updatedUser.isEmailVerified,
+      id: update.id,
+      email: update.email,
+      firstName: update.firstName,
+      lastName: update.lastName,
+      phoneNumber: update.phoneNumber,
+      isEmailVerified: update.isEmailVerified,
     };
 
     const token = await APIFeatures.assignJwtToken(result, this.jwtService);
@@ -321,14 +333,23 @@ export class UsersService {
 
   async resendOTP(user) {
     const otp = await APIFeatures.generateOtp();
+    if (user.otpType === null) {
+      throw new BadRequestException('No OTP type found for the user');
+    }
+
+    const hashOtp = await bcrypt.hash(otp.token.toString(), PASSWORD_SALT);
     const userData = await this.prisma.user.update({
       where: { email: user.email },
-      data: { otp: otp.token, otpExpiresIn: otp.otpExpires },
+      data: { otp: hashOtp, otpExpiresIn: otp.otpExpires },
     });
 
-    await this.mailService.welcomeMail(user.email, user.firstName ?? '', otp.token);
+    await this.mailService.welcomeMail(
+      user.email,
+      user.firstName ?? '',
+      otp.token,
+    );
 
-     const result = {
+    const result = {
       id: userData.id,
       email: userData.email,
       firstName: userData.firstName,
@@ -341,47 +362,82 @@ export class UsersService {
   }
 
   async sendPasswordOtp(payload: SendPasswordOtpDto) {
-    const user = await this.getOne({ email: payload.email, status: 'ACTIVE' });
+    const user = await this.getOne({
+      email: payload.email,
+      status: 'ACTIVE',
+    });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
     const otp = await APIFeatures.generateOtp();
-
-    const { email, firstName } = user;
-
-    const update = await this.prisma.user.update({
-      where: {
-        email: payload.email,
-      },
-      data: {
-        otp: otp.token,
-        otpExpiresIn: otp.otpExpires,
-      },
-    });
+    const hashOtp = await bcrypt.hash(otp.token.toString(), PASSWORD_SALT);
 
     try {
-      await this.mailService.sendOtp(email, firstName ?? '', otp.token);
-    } catch (err) {
-      this.logger.log('Email not sent', err);
-      throw new BadRequestException('Email not sent');
+      const updatedUser = await this.prisma.$transaction(async (tx) => {
+        const userWithOtp = await tx.user.update({
+          where: { id: user.id },
+          data: {
+            otp: hashOtp,
+            otpExpiresIn: otp.otpExpires,
+            otpType: OtpType.FORGOT_PASSWORD,
+          },
+        });
+
+        await this.mailService.sendOtp(
+          user.email,
+          user.firstName ?? '',
+          otp.token,
+        );
+
+        return userWithOtp;
+      });
+
+      const result = {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        phoneNumber: updatedUser.phoneNumber,
+        isEmailVerified: updatedUser.isEmailVerified,
+      };
+
+      return {
+        message: 'OTP sent to your email address',
+        data: this.sanitizeUser(result),
+      };
+    } catch (error) {
+      this.logger.error('OTP process failed', error);
+      throw new BadRequestException('Failed to send password reset OTP');
     }
-
-    const userData = this.sanitizeUser(update);
-
-    return { message: 'OTP sent to your email address', data: userData };
   }
 
-  async passwordOtpVerify(otp: number) {
-    const currentTime = new Date();
-    const user = await this.getOne({ otp, otpExpiresIn: { gte: currentTime } });
+  // async passwordOtpVerify(payload: ActivateAccountDto) {
+  //   const currentTime = new Date();
 
-    if (!user) {
-      throw new BadRequestException('Expired or incorrect "OTP"');
-    }
+  //   const hashOtp = await bcrypt.hash(payload.otp, PASSWORD_SALT);
+  //   console.log(hashOtp);
 
-    return { message: 'OTP verified successfully' };
-  }
+  //   const user = await this.getOne({
+  //     otp: hashOtp,
+  //     // otpExpiresIn: { gte: new Date(currentTime.getTime()) },
+  //   });
+
+  //   console.log(user);
+
+  //   if (!user) {
+  //     throw new BadRequestException('Expired or incorrect OTP');
+  //   }
+
+  //   const decryptOtp = await bcrypt.compare(payload.otp, user.otp);
+
+  //   if (!decryptOtp) {
+  //     throw new BadRequestException('Expired or incorrect OTP');
+  //   }
+
+  //   return { message: 'OTP verified successfully' };
+  // }
 
   async softDelete(userId: string) {
     const user = await this.getOne({ id: userId, isDeleted: false });
@@ -390,7 +446,7 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    const result = await this.prisma.user.update({
+    await this.prisma.user.update({
       where: {
         id: userId,
       },
@@ -403,44 +459,45 @@ export class UsersService {
     return 'Account temporarily deleted...';
   }
 
-  async resetPassword(resetPasswordDto: ResetPasswordDto, otp: number) {
-    const { password } = resetPasswordDto;
+  async resetPassword(resetPasswordDto: ResetPasswordDto, otp: string) {
+    const { password, email } = resetPasswordDto;
     const currentTime = new Date();
 
     const salt = 10;
     const hashPassword = await bcrypt.hash(password, salt);
 
-    const isTokenValid = await this.prisma.user.findFirst({
-      where: {
-        otp: otp,
-        otpExpiresIn: {
-          gte: new Date(currentTime.getTime()),
-        },
-      },
+    const getUser = await this.getOne({
+      email: email,
+      otpType: OtpType.FORGOT_PASSWORD,
     });
 
-    if (!isTokenValid) throw new NotFoundException('Invalid token');
+    if (!getUser) throw new NotFoundException('User not found!');
 
-    const newPassword = await this.prisma.user.update({
+    //compare otp
+    const decryptOtp = await bcrypt.compare(otp, getUser.otp);
+
+    if (!decryptOtp) {
+      throw new BadRequestException('Expired or incorrect OTP');
+    }
+
+    const updateUserPassword = await this.prisma.user.update({
       where: {
-        email: isTokenValid.email,
-        otp: otp,
+        email: email,
+        otpExpiresIn: { gte: new Date(currentTime.getTime()) },
       },
       data: {
         password: hashPassword,
         otp: null,
         otpExpiresIn: null,
+        otpType: null,
       },
     });
 
-    const {
-      password: _,
-      transactionPin: __,
-      isDeleted,
-      ...userWithoutPassword
-    } = newPassword;
+    if (!updateUserPassword) {
+      throw new BadRequestException('Unable to reset password / Invalid OTP');
+    }
 
-    return userWithoutPassword;
+    return { message: 'Password reset successfully' };
   }
 
   sanitizeUser(user) {
