@@ -2,43 +2,47 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APIRequest } from '../helpers/http.service';
 import { Utility } from 'src/helpers/utilities.service';
+import { BvnDto } from 'src/kyc/dto/bvn.dto';
 
 @Injectable()
 export class VerificationService {
-  baseUrl: string;
-  publicKey: string;
-  privateKey: string;
-  appId: string;
-  headers: object; 
+  fincraBaseUrl: string;
+  fincraPrivateKey: string;
+  fincraPublicKey: string;
+  fincraAppId: string;
+  headers: object;
 
   constructor(private configService: ConfigService) {
-    this.baseUrl = this.configService.get('DOJAH_BASE_URL');
-    this.publicKey = this.configService.get('DOJAH_PUBLIC_KEY');
-    this.privateKey = this.configService.get('DOJAH_PRIVATE_KEY');
-    this.appId = this.configService.get('DOJAH_APP_ID');
+    this.fincraBaseUrl = this.configService.get('FINCRA_SANDBOX_URL');
+    this.fincraPrivateKey = this.configService.get('FINCRA_API_KEY');
+
     this.headers = {
-      AppId: this.appId,
-      Authorization: this.privateKey,
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      'api-key': this.fincraPrivateKey,
     };
   }
 
-  async verifyBvn(number: string) {
-    if (!/^[0-9]{11}$/.test(number))
+  async verifyBvn(payload:BvnDto) {
+    if (!/^[0-9]{11}$/.test(payload.bvn))
       throw new BadRequestException('Verification failed, invalid BVN');
-    const url = '/kyc/bvn?bvn=' + number;
-    const { entity = false, error = false } = await this.sendGetRequest(url);
-    if (error || !entity) {
-      const errorMessage = error?.error || error || 'Verification failed';
-      throw new BadRequestException(errorMessage);
-    }
+    const url = 'core/bvn-verification';
+    return await this.sendPostRequest(
+      url,
+      { bvn: payload.bvn, business:payload.business },
+    );
 
-    return {
-      status: 'successful',
-      message: 'Verification completed successfully',
-      data: entity ?? null,
-    };
+    // console.log('BVN verification response:',result);
+    // if (error || !entity) {
+    //   const errorMessage = error?.error || error || 'Verification failed';
+    //   throw new BadRequestException(errorMessage);
+    // }
+
+    // return {
+    //   status: 'successful',
+    //   message: 'Verification completed successfully',
+    //   data: result ?? null,
+    // };
   }
 
   async verifyNin(number: string) {
@@ -55,7 +59,7 @@ export class VerificationService {
     };
   }
 
-  async verifyDriversLicense(number: string, ) {
+  async verifyDriversLicense(number: string) {
     if (!/^[a-zA-Z]{3}([ -]{1})?[A-Z0-9]{6,12}$/i.test(number))
       throw new BadRequestException(
         'Verification failed, invalid licence number',
@@ -64,8 +68,6 @@ export class VerificationService {
     const { entity = false, error = false } = await this.sendGetRequest(url);
     if (error || !entity) throw new BadRequestException('Verification failed');
 
-
-
     return {
       status: 'successful',
       message: 'Verification completed successfully',
@@ -73,7 +75,7 @@ export class VerificationService {
     };
   }
 
-  async internationalPassport(number: string, ) {
+  async internationalPassport(number: string) {
     if (!/^[a-zA-Z]{3}([ -]{1})?[A-Z0-9]{6,12}$/i.test(number))
       throw new BadRequestException(
         'Verification failed, invalid passport number',
@@ -82,8 +84,6 @@ export class VerificationService {
     const { entity = false, error = false } = await this.sendGetRequest(url);
     if (error || !entity) throw new BadRequestException('Verification failed');
 
-
-
     return {
       status: 'successful',
       message: 'Verification completed successfully',
@@ -91,14 +91,14 @@ export class VerificationService {
     };
   }
 
-  async verifyDocumentImage(imageUrl: string,) {
+  async verifyDocumentImage(imageUrl: string) {
     const url = '/dl?license_number=' + imageUrl;
     const { entity = false, error = false } = await this.sendGetRequest(url);
     if (error || !entity) throw new BadRequestException('Verification failed');
 
     //upload front image to cloudinary
-      // const frontImageUrl =  await Utility.uploadImage(frontImgFilePath, 'drivers_license');
-      // const backImageUrl =  await Utility.uploadImage(backImgFilePath, 'drivers_license');
+    // const frontImageUrl =  await Utility.uploadImage(frontImgFilePath, 'drivers_license');
+    // const backImageUrl =  await Utility.uploadImage(backImgFilePath, 'drivers_license');
 
     return {
       status: 'successful',
@@ -134,7 +134,7 @@ export class VerificationService {
   }
 
   private async sendGetRequest(path: string) {
-    const url = this.baseUrl + path;
+    const url = this.fincraBaseUrl + path;
     const httpService = new APIRequest({
       headers: this.headers,
     });
@@ -142,12 +142,12 @@ export class VerificationService {
     return httpService.get(url);
   }
 
-  private async sendPostRequest(path: string, body?: any) {
-    const url = this.baseUrl + path;
+  private async sendPostRequest(path?: string, body?: any) {
+    const url = this.fincraBaseUrl + path;
     const httpService = new APIRequest({
       headers: this.headers,
     });
 
-    return httpService.post(url, body);
+    return await httpService.post(url, body);
   }
-}
+}                    

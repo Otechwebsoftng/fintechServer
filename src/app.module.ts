@@ -14,7 +14,8 @@ import { KycModule } from './kyc/kyc.module';
 import { WalletModule } from './wallet/wallet.module';
 // import { VirtualCardsModule } from './virtual-cards/virtual-cards.module';
 import { BeneficiaryModule } from './beneficiary/beneficiary.module';
-import { WebhooksModule } from './webhooks/webhooks.module';
+// import { WebhooksModule } from './webhooks/webhooks.module';
+import { VirtualAccountModule } from './virtual-account/virtual-account.module';
 
 
 @Module({
@@ -35,7 +36,8 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     WalletModule,
     // VirtualCardsModule,
     BeneficiaryModule,
-    WebhooksModule,
+    // WebhooksModule,
+    VirtualAccountModule,
   ],
   controllers: [],
   providers: [

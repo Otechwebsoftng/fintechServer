@@ -389,14 +389,14 @@ export class AdminService {
       this.prisma.user.count({
         where: {
           userType: UserType.USER,
-          state: AccountStatus.ACTIVE,
+          status: AccountStatus.ACTIVE,
           isDeleted: false,
         },
       }),
       this.prisma.user.count({
         where: {
           userType: UserType.USER,
-          state: AccountStatus.INACTIVE,
+          status: AccountStatus.INACTIVE,
           isDeleted: true,
         },
       }),

@@ -413,31 +413,31 @@ export class UsersService {
     }
   }
 
-  // async passwordOtpVerify(payload: ActivateAccountDto) {
-  //   const currentTime = new Date();
+  async passwordOtpVerify(payload: ActivateAccountDto) {
+    const currentTime = new Date();
 
-  //   const hashOtp = await bcrypt.hash(payload.otp, PASSWORD_SALT);
-  //   console.log(hashOtp);
+    const hashOtp = await bcrypt.hash(payload.otp, PASSWORD_SALT);
+    console.log(hashOtp);
 
-  //   const user = await this.getOne({
-  //     otp: hashOtp,
-  //     // otpExpiresIn: { gte: new Date(currentTime.getTime()) },
-  //   });
+    const user = await this.getOne({
+      otp: hashOtp,
+      // otpExpiresIn: { gte: new Date(currentTime.getTime()) },
+    });
 
-  //   console.log(user);
+    console.log(user);
 
-  //   if (!user) {
-  //     throw new BadRequestException('Expired or incorrect OTP');
-  //   }
+    if (!user) {
+      throw new BadRequestException('Expired or incorrect OTP');
+    }
 
-  //   const decryptOtp = await bcrypt.compare(payload.otp, user.otp);
+    const decryptOtp = await bcrypt.compare(payload.otp, user.otp);
 
-  //   if (!decryptOtp) {
-  //     throw new BadRequestException('Expired or incorrect OTP');
-  //   }
+    if (!decryptOtp) {
+      throw new BadRequestException('Expired or incorrect OTP');
+    }
 
-  //   return { message: 'OTP verified successfully' };
-  // }
+    return { message: 'OTP verified successfully' };
+  }
 
   async softDelete(userId: string) {
     const user = await this.getOne({ id: userId, isDeleted: false });
@@ -463,39 +463,35 @@ export class UsersService {
     const { password, email } = resetPasswordDto;
     const currentTime = new Date();
 
-    const salt = 10;
-    const hashPassword = await bcrypt.hash(password, salt);
-
-    const getUser = await this.getOne({
-      email: email,
+    const user = await this.getOne({
+      email,
       otpType: OtpType.FORGOT_PASSWORD,
     });
 
-    if (!getUser) throw new NotFoundException('User not found!');
-
-    //compare otp
-    const decryptOtp = await bcrypt.compare(otp, getUser.otp);
-
-    if (!decryptOtp) {
-      throw new BadRequestException('Expired or incorrect OTP');
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
 
-    const updateUserPassword = await this.prisma.user.update({
-      where: {
-        email: email,
-        otpExpiresIn: { gte: new Date(currentTime.getTime()) },
-      },
+    if (!user.otpExpiresIn || user.otpExpiresIn < currentTime) {
+      throw new BadRequestException('OTP has expired');
+    }
+
+    const isOtpValid = await bcrypt.compare(otp, user.otp);
+    if (!isOtpValid) {
+      throw new BadRequestException('Invalid OTP');
+    }
+
+    const hashedPassword = await bcrypt.hash(password, PASSWORD_SALT);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
       data: {
-        password: hashPassword,
+        password: hashedPassword,
         otp: null,
         otpExpiresIn: null,
         otpType: null,
       },
     });
-
-    if (!updateUserPassword) {
-      throw new BadRequestException('Unable to reset password / Invalid OTP');
-    }
 
     return { message: 'Password reset successfully' };
   }

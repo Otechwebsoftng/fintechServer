@@ -76,8 +76,6 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // parse cookies on incoming requests so controllers can read req.cookies
-  app.use(cookieParser());
   const port = configService.get<string | number>('PORT') ?? 3000;
   await app.listen(port);
 

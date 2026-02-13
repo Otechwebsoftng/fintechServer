@@ -17,6 +17,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { IdentityType, User } from '@prisma/client';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { BvnDto } from './dto/bvn.dto';
+import { TaxAddressDto } from './dto/taxAddress.dto';
 
 @ApiTags('Kyc Verification')
 @ApiBearerAuth('JWT-auth')
@@ -40,12 +42,25 @@ export class KycController {
     description: 'Verify user Bvn',
     summary: 'Verify user Bvn with external service provider',
   })
-  @Post('/verify-bvn')
+  @Post('verify-bvn')
   @UseGuards(AuthGuard())
-  async verifyBvn(@Body() payload: { bvn: string }, @CurrentUser() user: User) {
+  async verifyBvn(@Body() payload: BvnDto, @CurrentUser() user: User) {
     const userId = user.id;
     const { bvn } = payload;
-    return this.kycService.verifyBvn(userId, bvn);
+    return this.kycService.verifyBvn(userId, payload);
+  }
+
+  @ApiOperation({
+    description: 'Update user tax address',
+    summary: 'Update user tax address information',
+  })
+  @Patch('update-tax-address')
+  @UseGuards(AuthGuard())
+  async updateTaxAddress(
+    @Body() payload: TaxAddressDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.kycService.updateTaxAddress(user, payload);
   }
 
   @ApiOperation({
@@ -84,5 +99,4 @@ export class KycController {
       file,
     );
   }
-
 }

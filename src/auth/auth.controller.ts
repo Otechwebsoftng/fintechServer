@@ -57,7 +57,7 @@ export class AuthController {
     description:
       'Validates verification code sent to admin email for admin to gain access to admin dashboard',
   })
-  async activateAccount(
+  async verifyAdmin(
     @Body() activateAccountDto: ActivateAccountDto,
     @CurrentUser() user: User,
   ): Promise<any> {

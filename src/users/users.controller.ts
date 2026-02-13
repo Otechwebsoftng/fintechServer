@@ -150,16 +150,16 @@ export class UsersController {
   }
 
   // Reset Password
-  // @Patch('verify-password-otp')
-  // @ApiOperation({
-  //   description: ' Verify OTP for password reset',
-  //   summary: 'Users can verify OTP for password reset.',
-  // })
-  // async verifyPassword(
-  //   @Body() payload: ActivateAccountDto
-  // ) {
-  //   return this.usersService.passwordOtpVerify(payload);
-  // }
+  @Patch('verify-password-otp')
+  @ApiOperation({
+    description: ' Verify OTP for password reset',
+    summary: 'Users can verify OTP for password reset.',
+  })
+  async verifyPassword(
+    @Body() payload: ActivateAccountDto
+  ) {
+    return this.usersService.passwordOtpVerify(payload);
+  }
 
   // Reset Password
   @Patch('reset-password/:otp')

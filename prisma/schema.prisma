@@ -33,10 +33,6 @@ model User {
   transactionPin             String?
   gender                     Gender                     @default(NOT_SPECIFIED)
   dob                        DateTime?
-  address                    String?
-  city                       String?
-  state                      String?
-  country                    String?
   otp                        String?
   otpType                    OtpType?
   otpExpiresIn               DateTime?
@@ -49,9 +45,6 @@ model User {
   identityTypeUrl            String?
   identityTypePublicId       String?
   identityVerificationStatus DocumentVerificationStatus @default(NOT_VERIFIED)
-  facialVerificationStatus   DocumentVerificationStatus @default(NOT_VERIFIED)
-  facialVerificationUrl      String?
-  facialVerificationPublicId String?
   status                     AccountStatus              @default(INACTIVE)
   isEmailVerified            Boolean                    @default(false)
   isAdminPasswordChanged     Boolean?                   @default(false)
@@ -74,8 +67,27 @@ model User {
   createdUsers               User[]                     @relation("UserCreatedBy")
   updatedUsers               User[]                     @relation("UserLastUpdatedBy")
   beneficiaries              Beneficiary[]
+  taxAddress                 TaxAddress?
 
   @@index([email, phoneNumber])
+}
+
+model TaxAddress {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  country               String?  @db.VarChar(50)
+  state                 String?  @db.VarChar(50)
+  city                  String?  @db.VarChar(50)
+  street                String?  @db.VarChar(255)
+  houseNo               String?  @db.VarChar(50)
+  zipCode               String?  @db.VarChar(20)
+  nationality           String?  @db.VarChar(50)
+  taxCountry            String?  @db.VarChar(50)
+  taxNumber             String?  @db.VarChar(100)
+  isTaxAddressCompleted Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Role {
@@ -179,15 +191,21 @@ model Payment {
 }
 
 model Wallet {
-  id           String              @id @default(uuid())
-  userId       String
-  currency     Currency
-  status       AccountStatus       @default(ACTIVE)
-  isDeleted    Boolean             @default(false)
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-  user         User                @relation(fields: [userId], references: [id])
-  transactions WalletTransaction[]
+  id                String              @id @default(uuid())
+  userId            String
+  currency          Currency
+  accountType       WalletType?         @default(INDIVIDUAL)
+  status            WalletStatus        @default(PENDING)
+  merchantReference String?             @db.VarChar(64)
+  bankName          String?             @db.VarChar(100)
+  accountNumber     String?             @unique
+  channelReference  String?             @db.VarChar(64)
+  isDeleted         Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  webhooks          Webhook[]
+  user              User                @relation(fields: [userId], references: [id])
+  transactions      WalletTransaction[]
 
   @@unique([userId, currency], name: "user_currency_unique")
   @@index([userId, currency])
@@ -211,6 +229,32 @@ model WalletTransaction {
 
   @@index([walletId])
   @@index([reference])
+}
+
+model Webhook {
+  id               String    @id @default(uuid())
+  domain           String?
+  status           String?
+  reference        String?
+  amount           Float?
+  message          String?
+  gateway_response String?
+  paid_at          DateTime?
+  failed_at        DateTime?
+  channel          String?
+  currency         String?
+  ip_address       String?
+  metadata         Json?
+  log              Json?
+  fees             Float?
+  customer         Json?
+  authorization    Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime?
+  wallet           Wallet?   @relation(fields: [walletId], references: [id])
+  walletId         String?
+
+  @@index([id, reference])
 }
 
 model Beneficiary {
@@ -259,6 +303,12 @@ enum AccountStatus {
   SUSPENDED
 }
 
+enum WalletStatus {
+  APPROVED
+  PENDING
+  REJECTED
+}
+
 enum Currency {
   USD
   EUR
@@ -302,8 +352,8 @@ enum PaymentMethod {
 }
 
 enum WalletType {
-  USD
-  NGN
+  INDIVIDUAL
+  COOPERATE
 }
 
 enum OtpType {

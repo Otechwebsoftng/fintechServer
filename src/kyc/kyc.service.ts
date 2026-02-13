@@ -7,6 +7,7 @@ import {
   DocumentVerificationStatus,
   IdentityType,
   KycLevel,
+  User,
 } from '@prisma/client';
 import { K } from 'handlebars';
 import { use } from 'passport';
@@ -16,6 +17,9 @@ import { UsersService } from 'src/users/users.service';
 import { VerificationService } from 'src/vendors/verification-service';
 import { Gender } from '@prisma/client';
 import { Utility } from 'src/helpers/utilities.service';
+import { BvnDto } from './dto/bvn.dto';
+import { TaxAddressDto } from './dto/taxAddress.dto';
+import { connect } from 'http2';
 
 @Injectable()
 export class KycService {
@@ -62,9 +66,9 @@ export class KycService {
     // return user.kycLevel;
   }
 
-  async verifyBvn(userId: string, bvn: string) {
+  async verifyBvn(userId: string, payload: BvnDto) {
     // Validate BVN format (11 digits)
-    if (!/^[0-9]{11}$/.test(bvn)) {
+    if (!/^[0-9]{11}$/.test(payload.bvn)) {
       throw new BadRequestException('Verification failed, invalid BVN format');
     }
 
@@ -85,7 +89,7 @@ export class KycService {
     // Check if BVN is already used by another user
     const existingBvn = await this.prisma.user.findFirst({
       where: {
-        bvn,
+        bvn: payload.bvn,
         id: { not: userId },
       },
     });
@@ -97,21 +101,25 @@ export class KycService {
     }
 
     // Call verification service
-    const result = await this.verificationService.verifyBvn(bvn);
+    const result = await this.verificationService.verifyBvn(payload);
 
-    if (result.status !== 'successful') {
+    if (result.data.verificationStatus !== 'verified') {
       throw new BadRequestException('BVN verification failed');
     }
 
     // Update user's BVN verification status and KYC level
-    const update = await this.prisma.user.update({
+    await this.prisma.user.update({
       where: { id: userId },
       data: {
-        dob: result.data.date_of_birth
-          ? new Date(result.data.date_of_birth)
+        firstName: result.data.response.firstName,
+        lastName: result.data.response.lastName,
+        otherName: result.data.response.middleName,
+        dob: result.data.response.dateOfBirth
+          ? new Date(result.data.response.dateOfBirth)
           : null,
-        gender: this.mapGenderToEnum(result.data.gender),
-        bvn,
+        phoneNumber: result.data.response.phoneNumber,
+        gender: this.mapGenderToEnum(result.data.response.gender),
+        bvn: payload.bvn,
         bvnVerified: DocumentVerificationStatus.PASSED,
         kycLevel: KycLevel.LEVEL_1,
       },
@@ -120,7 +128,45 @@ export class KycService {
     return {
       message: 'BVN verified successfully',
       kycLevel: KycLevel.LEVEL_1,
-      bvnVerified: update.bvnVerified,
+    };
+  }
+
+  async updateTaxAddress(user: User, payload: TaxAddressDto) {
+    // Upsert: create if doesn't exist, update if exists
+    const updatedTaxAddress = await this.prisma.taxAddress.upsert({
+      where: { userId: user.id },
+      update: payload,
+      create: {
+        ...payload,
+        user: { connect: { id: user.id } },
+      },
+    });
+
+    // Check if all required fields are now complete in the database
+    const isComplete = !!(
+      updatedTaxAddress.country?.trim() &&
+      updatedTaxAddress.state?.trim() &&
+      updatedTaxAddress.city?.trim() &&
+      updatedTaxAddress.street?.trim() &&
+      updatedTaxAddress.houseNo?.trim() &&
+      updatedTaxAddress.nationality?.trim() &&
+      updatedTaxAddress.taxCountry?.trim() &&
+      updatedTaxAddress.zipCode?.trim() &&
+      // taxNumber is only required if taxCountry is US
+      (updatedTaxAddress.taxCountry?.trim() === 'US' ? updatedTaxAddress.taxNumber?.trim() : true)
+    );
+
+    // Update the completion flag if needed
+    if (updatedTaxAddress.isTaxAddressCompleted !== isComplete) {
+      await this.prisma.taxAddress.update({
+        where: { userId: user.id },
+        data: { isTaxAddressCompleted: isComplete },
+      });
+    }
+
+    return {
+      message: 'Tax address updated successfully',
+      data: { isTaxAddressCompleted: isComplete },
     };
   }
 
@@ -134,7 +180,7 @@ export class KycService {
     if (!idNumber?.trim()) {
       throw new BadRequestException('ID number is required');
     }
-    
+
     if (!file) {
       throw new BadRequestException('Identity document image is required');
     }
@@ -208,10 +254,13 @@ export class KycService {
       };
 
       // Only update gender and DOB if not already set or if new data is available
-      if (result.data.gender && (!user.gender || user.gender === Gender.NOT_SPECIFIED)) {
+      if (
+        result.data.gender &&
+        (!user.gender || user.gender === Gender.NOT_SPECIFIED)
+      ) {
         updateData.gender = this.mapGenderToEnum(result.data.gender);
       }
-      
+
       if (result.data.date_of_birth && !user.dob) {
         updateData.dob = new Date(result.data.date_of_birth);
       }
@@ -233,7 +282,7 @@ export class KycService {
       } catch (deleteError) {
         this.logger.error('Failed to rollback image upload', deleteError);
       }
-      
+
       this.logger.error('Database update failed during ID verification', error);
       throw new BadRequestException('Failed to update verification status');
     }
