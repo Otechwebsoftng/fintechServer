@@ -1,7 +1,4 @@
-import {
-  IsNotEmpty,
-  IsString,
-} from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class BvnDto {
@@ -10,8 +7,8 @@ export class BvnDto {
   @IsString()
   readonly bvn: string;
 
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsString()
-  readonly business: string;
+  // @ApiProperty()
+  // @IsNotEmpty()
+  // @IsString()
+  // readonly business: string;
 }

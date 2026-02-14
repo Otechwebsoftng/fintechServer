@@ -7,6 +7,7 @@ import { AuthModule } from 'src/auth/auth.module';
 import { UsersModule } from 'src/users/users.module';
 import { CustomLogger } from 'src/custom.logger';
 import { VerificationService } from 'src/vendors/verification-service';
+import { DojahVerificationService } from 'src/vendors/dojah.verification';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { VerificationService } from 'src/vendors/verification-service';
     UsersModule,
     PrismaModule,
   ],
-  providers: [KycService, CustomLogger, VerificationService],
+  providers: [KycService, CustomLogger, VerificationService, DojahVerificationService],
   controllers: [KycController],
 })
 export class KycModule {}

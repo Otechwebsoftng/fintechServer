@@ -19,6 +19,8 @@ import { IdentityType, User } from '@prisma/client';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BvnDto } from './dto/bvn.dto';
 import { TaxAddressDto } from './dto/taxAddress.dto';
+import { IdentityVerificationDto } from './dto/identityVerification.dto';
+import { UtilityVerificationDto } from './dto/utility.dto';
 
 @ApiTags('Kyc Verification')
 @ApiBearerAuth('JWT-auth')
@@ -46,7 +48,6 @@ export class KycController {
   @UseGuards(AuthGuard())
   async verifyBvn(@Body() payload: BvnDto, @CurrentUser() user: User) {
     const userId = user.id;
-    const { bvn } = payload;
     return this.kycService.verifyBvn(userId, payload);
   }
 
@@ -72,7 +73,7 @@ export class KycController {
   @UseGuards(AuthGuard())
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: 5 * 1024 * 1024 },
+      limits: { fileSize: 10 * 1024 * 1024 },
       fileFilter: (req, file, cb) => {
         if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png') {
           cb(null, true);
@@ -87,16 +88,41 @@ export class KycController {
   )
   async verifyIdentity(
     @UploadedFile() file,
-    @Body() payload: { identityType: IdentityType; identityNumber: string },
+    @Body() payload: IdentityVerificationDto,
     @CurrentUser() user: User,
   ) {
     const userId = user.id;
-    const { identityType, identityNumber } = payload;
-    return this.kycService.verifyIDCard(
-      userId,
-      identityType,
-      identityNumber,
-      file,
-    );
+    return this.kycService.verifyIdentityDocument(userId, payload, file);
+  }
+
+  @ApiOperation({
+    description: 'Verify user Utility Bill',
+    summary:
+      'Verify user Utility Bill such as electricity, water, or internet bills',
+  })
+  @Post('/verify-utility')
+  @UseGuards(AuthGuard())
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png') {
+          cb(null, true);
+        } else {
+          cb(
+            new BadRequestException('Only .jpg and .png files are allowed!'),
+            false,
+          );
+        }
+      },
+    }),
+  )
+  async verifyUtility(
+    @UploadedFile() file,
+    @Body() payload: UtilityVerificationDto,
+    @CurrentUser() user: User,
+  ) {
+    const userId = user.id;
+    return this.kycService.verifyUtility(userId, file, payload);
   }
 }

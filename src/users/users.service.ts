@@ -168,6 +168,21 @@ export class UsersService {
             permissions: true,
           },
         },
+        taxAddress: {
+          select: {
+            id: true,
+            country: true,
+            state: true,
+            city: true,
+            street: true,
+            houseNo: true,
+            zipCode: true,
+            nationality: true,
+            taxCountry: true,
+            taxNumber: true,
+            isTaxAddressCompleted: true,
+          },
+        },
       },
     });
   }

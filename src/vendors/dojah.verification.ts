@@ -5,55 +5,26 @@ import { Utility } from 'src/helpers/utilities.service';
 import { BvnDto } from 'src/kyc/dto/bvn.dto';
 
 @Injectable()
-export class VerificationService {
-  fincraBaseUrl: string;
-  fincraPrivateKey: string;
-  fincraPublicKey: string;
-  fincraAppId: string;
-  dojahBaseUrl: string;
-  dojahAppId: string;
-  dojahPrivateKey: string;
-  dojahPublicKey: string;
-  fincraBusiness: string;
+export class DojahVerificationService {
+  baseUrl: string;
+  publicKey: string;
+  privateKey: string;
+  appId: string;
   headers: object;
 
   constructor(private configService: ConfigService) {
-    this.fincraBaseUrl = this.configService.get('FINCRA_SANDBOX_URL');
-    this.fincraPrivateKey = this.configService.get('FINCRA_API_KEY');
-    this.fincraBusiness = this.configService.get('FINCRA_BUSINESS');
-    this.dojahBaseUrl = this.configService.get('DOJAH_SANDBOX_URL');
-    this.dojahAppId = this.configService.get('DOJAH_APP_ID');
-    this.dojahPrivateKey = this.configService.get('DOJAH_API_KEY');
-    this.dojahPublicKey = this.configService.get('DOJAH_PUBLIC_KEY');
-
+    this.baseUrl = this.configService.get('DOJAH_BASE_URL');
+    this.publicKey = this.configService.get('DOJAH_PUBLIC_KEY');
+    this.privateKey = this.configService.get('DOJAH_PRIVATE_KEY');
+    this.appId = this.configService.get('DOJAH_APP_ID');
     this.headers = {
+      AppId: this.appId,
+      Authorization: this.privateKey,
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      'api-key': this.fincraPrivateKey,
     };
   }
 
-  async verifyBvn(payload: BvnDto) {
-    if (!/^[0-9]{11}$/.test(payload.bvn))
-      throw new BadRequestException('Verification failed, invalid BVN');
-    const url = 'core/bvn-verification';
-    return await this.sendPostRequest(url, {
-      bvn: payload.bvn,
-      business: this.fincraBusiness,
-    });
-
-    // console.log('BVN verification response:',result);
-    // if (error || !entity) {
-    //   const errorMessage = error?.error || error || 'Verification failed';
-    //   throw new BadRequestException(errorMessage);
-    // }
-
-    // return {
-    //   status: 'successful',
-    //   message: 'Verification completed successfully',
-    //   data: result ?? null,
-    // };
-  }
 
   async verifyNin(number: string) {
     if (!/^[0-9]{11}$/.test(number))
@@ -86,12 +57,14 @@ export class VerificationService {
   }
 
   async internationalPassport(number: string) {
-    if (!/^[a-zA-Z]{3}([ -]{1})?[A-Z0-9]{6,12}$/i.test(number))
-      throw new BadRequestException(
-        'Verification failed, invalid passport number',
-      );
+    console.log('Verifying international passport number:', number);
+    // if (!/^[a-zA-Z]{3}([ -]{1})?[A-Z0-9]{6,12}$/i.test(number))
+    //   throw new BadRequestException(
+    //     'Verification failed, invalid passport number',
+    //   );
     const url = '/kyc/passport?passport_number=' + number;
     const { entity = false, error = false } = await this.sendGetRequest(url);
+    console.log('Passport verification response:', { entity, error });
     if (error || !entity) throw new BadRequestException('Verification failed');
 
     return {
@@ -101,6 +74,17 @@ export class VerificationService {
     };
   }
 
+  async verifyUtilityBillImage(payload:any) {
+    const url = '/document/analysis/utility_bill';
+    const { entity = false, error = false } = await this.sendPostRequest(url, payload);
+    if (error || !entity) throw new BadRequestException('Verification failed');
+
+    return {
+      status: 'successful',
+      message: 'Utility bill verification completed successfully',
+      data: entity ?? null,
+    };
+  }
   async verifyDocumentImage(imageUrl: string) {
     const url = '/dl?license_number=' + imageUrl;
     const { entity = false, error = false } = await this.sendGetRequest(url);
@@ -139,12 +123,14 @@ export class VerificationService {
         return this.verifyDriversLicense(number);
       case 'VOTER_CARD':
         return this.verifyVoterId(number);
+      case 'PASSPORT':
+        return this.internationalPassport(number);
       default:
     }
   }
 
   private async sendGetRequest(path: string) {
-    const url = this.fincraBaseUrl + path;
+    const url = this.baseUrl + path;
     const httpService = new APIRequest({
       headers: this.headers,
     });
@@ -153,7 +139,7 @@ export class VerificationService {
   }
 
   private async sendPostRequest(path?: string, body?: any) {
-    const url = this.fincraBaseUrl + path;
+    const url = this.baseUrl + path;
     const httpService = new APIRequest({
       headers: this.headers,
     });

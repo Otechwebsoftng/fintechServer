@@ -20,6 +20,9 @@ import { Utility } from 'src/helpers/utilities.service';
 import { BvnDto } from './dto/bvn.dto';
 import { TaxAddressDto } from './dto/taxAddress.dto';
 import { connect } from 'http2';
+import { DojahVerificationService } from 'src/vendors/dojah.verification';
+import { IdentityVerificationDto } from './dto/identityVerification.dto';
+import { UtilityVerificationDto } from './dto/utility.dto';
 
 @Injectable()
 export class KycService {
@@ -28,6 +31,7 @@ export class KycService {
     private readonly usersService: UsersService,
     private readonly logger: CustomLogger,
     private readonly verificationService: VerificationService,
+    private readonly dojahVerificationService: DojahVerificationService,
   ) {}
 
   async checkUserKycStatus(userId: string) {
@@ -37,33 +41,19 @@ export class KycService {
     }
 
     // if kyc level is at level 0 then return level 1 of 3
-    if (user.kycLevel === KycLevel.LEVEL_0) {
+    if (user.kycLevel === KycLevel.TIER_1) {
       return {
         status: 200,
-        message: 'user KYC level is Level 0 of 3',
+        message: 'user KYC tier is tier 1 of 2',
         data: user.kycLevel,
       };
     }
-    if (user.kycLevel === KycLevel.LEVEL_1) {
+    if (user.kycLevel === KycLevel.TIER_2) {
       return {
-        message: 'user KYC level is Level 1 of 3',
+        message: 'user KYC tier is tier 2 of 2',
         data: user.kycLevel,
       };
     }
-    if (user.kycLevel === KycLevel.LEVEL_2) {
-      return {
-        message: 'user KYC level is Level 2 of 3',
-        data: user.kycLevel,
-      };
-    }
-    if (user.kycLevel === KycLevel.LEVEL_3) {
-      return {
-        message: 'user KYC level is Level 3 of 3',
-        data: user.kycLevel,
-      };
-    }
-
-    // return user.kycLevel;
   }
 
   async verifyBvn(userId: string, payload: BvnDto) {
@@ -117,22 +107,21 @@ export class KycService {
         dob: result.data.response.dateOfBirth
           ? new Date(result.data.response.dateOfBirth)
           : null,
-        phoneNumber: result.data.response.phoneNumber,
+        phoneNumber: result.data.response.phoneNo,
         gender: this.mapGenderToEnum(result.data.response.gender),
         bvn: payload.bvn,
         bvnVerified: DocumentVerificationStatus.PASSED,
-        kycLevel: KycLevel.LEVEL_1,
+        kycLevel: KycLevel.TIER_1,
       },
     });
 
     return {
       message: 'BVN verified successfully',
-      kycLevel: KycLevel.LEVEL_1,
+      kycLevel: KycLevel.TIER_1,
     };
   }
 
   async updateTaxAddress(user: User, payload: TaxAddressDto) {
-    // Upsert: create if doesn't exist, update if exists
     const updatedTaxAddress = await this.prisma.taxAddress.upsert({
       where: { userId: user.id },
       update: payload,
@@ -142,7 +131,6 @@ export class KycService {
       },
     });
 
-    // Check if all required fields are now complete in the database
     const isComplete = !!(
       updatedTaxAddress.country?.trim() &&
       updatedTaxAddress.state?.trim() &&
@@ -153,7 +141,9 @@ export class KycService {
       updatedTaxAddress.taxCountry?.trim() &&
       updatedTaxAddress.zipCode?.trim() &&
       // taxNumber is only required if taxCountry is US
-      (updatedTaxAddress.taxCountry?.trim() === 'US' ? updatedTaxAddress.taxNumber?.trim() : true)
+      (updatedTaxAddress.taxCountry?.trim() === 'US'
+        ? updatedTaxAddress.taxNumber?.trim()
+        : true)
     );
 
     // Update the completion flag if needed
@@ -170,14 +160,13 @@ export class KycService {
     };
   }
 
-  async verifyIDCard(
+  async verifyIdentityDocument(
     userId: string,
-    identityType: IdentityType,
-    idNumber: string,
+    payload: IdentityVerificationDto,
     file: any,
   ) {
     // Validate inputs early
-    if (!idNumber?.trim()) {
+    if (!payload.identityTypeNo?.trim()) {
       throw new BadRequestException('ID number is required');
     }
 
@@ -185,7 +174,7 @@ export class KycService {
       throw new BadRequestException('Identity document image is required');
     }
 
-    this.validateIdNumber(identityType, idNumber);
+    this.validateIdNumber(payload.identityType, payload.identityTypeNo);
 
     // Fetch user and check prerequisites
     const user = await this.usersService.getOne({ id: userId });
@@ -194,9 +183,12 @@ export class KycService {
     }
 
     // Check if BVN verification is completed (required for ID verification)
-    if (user.bvnVerified !== DocumentVerificationStatus.PASSED) {
+    if (
+      user.bvnVerified !== DocumentVerificationStatus.PASSED &&
+      user.taxAddress.isTaxAddressCompleted !== true
+    ) {
       throw new BadRequestException(
-        'BVN verification is required before ID verification. Please verify your BVN first.',
+        'complete BVN verification and tax address information before verifying identity document',
       );
     }
 
@@ -210,11 +202,9 @@ export class KycService {
     }
 
     // Check if ID number is already used by another user (more efficient query)
-    const existingIdUser = await this.prisma.user.findFirst({
-      where: {
-        identityTypeNo: idNumber,
-        id: { not: userId },
-      },
+    const existingIdUser = await this.usersService.getOne({
+      identityTypeNo: payload.identityTypeNo,
+      id: { not: userId },
     });
 
     if (existingIdUser) {
@@ -224,9 +214,9 @@ export class KycService {
     }
 
     // Call verification service BEFORE uploading the document
-    const result = await this.verificationService.verifyIdentity(
-      identityType,
-      idNumber,
+    const result = await this.dojahVerificationService.verifyIdentity(
+      payload.identityType,
+      payload.identityTypeNo,
     );
 
     if (result.status !== 'successful') {
@@ -245,12 +235,20 @@ export class KycService {
     // Update user with verification details
     try {
       const updateData: any = {
-        identityType,
-        identityTypeNo: idNumber,
+        identityType: payload.identityType,
+        identityTypeNo: payload.identityTypeNo,
         identityVerificationStatus: DocumentVerificationStatus.PASSED,
-        kycLevel: KycLevel.LEVEL_2,
+        kycLevel: KycLevel.TIER_2,
+        ...payload,
         identityTypeUrl: uploadedImage.url,
         identityTypePublicId: uploadedImage.public_id,
+        issuedPlace: result.data.issue_place,
+        expiryDate: result.data.expiry_date
+          ? new Date(result.data.expiry_date)
+          : null,
+        issuedDate: result.data.date_of_issue
+          ? new Date(result.data.date_of_issue)
+          : null,
       };
 
       // Only update gender and DOB if not already set or if new data is available
@@ -271,8 +269,8 @@ export class KycService {
       });
 
       return {
-        message: `${identityType} verified successfully`,
-        kycLevel: KycLevel.LEVEL_2,
+        message: `${payload.identityType} verified successfully`,
+        kycLevel: KycLevel.TIER_2,
         idVerified: update.identityVerificationStatus,
       };
     } catch (error) {
@@ -285,6 +283,109 @@ export class KycService {
 
       this.logger.error('Database update failed during ID verification', error);
       throw new BadRequestException('Failed to update verification status');
+    }
+  }
+
+  async verifyUtility(
+    userId: string,
+    file: any,
+    payload: UtilityVerificationDto,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Utility bill image is required');
+    }
+
+    // Fetch user and check prerequisites
+    const user = await this.usersService.getOne({ id: userId });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Upload utility bill image to Cloudinary first
+    let uploadedImage;
+    try {
+      uploadedImage = await Utility.uploadImage(file, 'UtilityBills');
+    } catch (error) {
+      this.logger.error(
+        'Image upload failed during utility bill verification',
+        error,
+      );
+      throw new BadRequestException('Failed to upload utility bill');
+    }
+
+    // Verify the utility bill using Dojah
+    let result;
+    try {
+      result = await this.dojahVerificationService.verifyUtilityBillImage({
+        input_type: 'url',
+        input_value: uploadedImage.url,
+      });
+
+      // Check if verification was successful
+      if (result.status !== 'successful') {
+        throw new BadRequestException('Utility bill verification failed');
+      }
+
+      // Ensure the bill is recent (within 3 months)
+      if (!result.data.metadata.is_recent) {
+        throw new BadRequestException(
+          'Utility bill is not recent. Please upload a bill from the last 3 months.',
+        );
+      }
+    } catch (error) {
+      // Cleanup: Delete uploaded image if verification fails
+      try {
+        await Utility.destroy(uploadedImage.public_id);
+      } catch (deleteError) {
+        this.logger.error(
+          'Failed to cleanup uploaded image after verification failure',
+          deleteError,
+        );
+      }
+      throw error; // Re-throw the original error
+    }
+
+    // Update user with verification details
+    try {
+      const updateData: any = {
+        ...payload,
+        meterNumber: result.data.identity_info.meter_number,
+        isUtilityBillVerified: true,
+        kycLevel: KycLevel.TIER_2,
+        utilityBillUrl: uploadedImage.url,
+        utilityBillPublicId: uploadedImage.public_id,
+        utilityProviderName: result.data.provider_name,
+        utilityBillIssuedDate: result.data.bill_issue_date
+          ? new Date(result.data.bill_issue_date)
+          : null,
+        isBillRecent: result.data.metadata.is_recent,
+      };
+
+      const update = await this.prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+      });
+
+      return {
+        message: 'Utility bill verified successfully',
+        kycLevel: KycLevel.TIER_2,
+        isUtilityBillVerified: update.isUtilityBillVerified,
+      };
+    } catch (error) {
+      // Rollback: Delete uploaded image if database update fails
+      try {
+        await Utility.destroy(uploadedImage.public_id);
+      } catch (deleteError) {
+        this.logger.error('Failed to rollback image upload', deleteError);
+      }
+
+      this.logger.error(
+        'Database update failed during utility bill verification',
+        error,
+      );
+      throw new BadRequestException(
+        'Failed to update utility bill verification status',
+      );
     }
   }
 

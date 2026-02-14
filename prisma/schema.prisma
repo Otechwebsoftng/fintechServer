@@ -37,14 +37,26 @@ model User {
   otpType                    OtpType?
   otpExpiresIn               DateTime?
   userType                   UserType                   @default(USER)
-  kycLevel                   KycLevel                   @default(LEVEL_0)
+  kycLevel                   KycLevel                   @default(TIER_1)
   bvn                        String?                    @unique
   bvnVerified                DocumentVerificationStatus @default(NOT_VERIFIED)
   identityType               IdentityType?
   identityTypeNo             String?
+  issuedDate                 DateTime?
+  expiryDate                 DateTime?
+  issuedCountry              String?                    @db.VarChar(50)
+  issuedPlace                String?                    @db.VarChar(50)
   identityTypeUrl            String?
   identityTypePublicId       String?
   identityVerificationStatus DocumentVerificationStatus @default(NOT_VERIFIED)
+  utilityBillUrl             String?
+  utilityBillPublicId        String?
+  meterNumber                String?                    @db.VarChar(100)
+  utilityProviderName        String?                    @db.VarChar(100)
+  utilityBillIssuedDate      DateTime?
+  isBillRecent               Boolean?                   @default(false)
+  utilityType                BillType?                  @default(ELECTRICITY)
+  isUtilityBillVerified      Boolean                    @default(false)
   status                     AccountStatus              @default(INACTIVE)
   isEmailVerified            Boolean                    @default(false)
   isAdminPasswordChanged     Boolean?                   @default(false)
@@ -290,10 +302,8 @@ enum DocumentVerificationStatus {
 }
 
 enum KycLevel {
-  LEVEL_0 @map("LEVEL 0")
-  LEVEL_1 @map("LEVEL 1")
-  LEVEL_2 @map("LEVEL 2")
-  LEVEL_3 @map("LEVEL 3")
+  TIER_1 @map("TIER 1")
+  TIER_2 @map("TIER 2")
 }
 
 enum AccountStatus {
@@ -322,6 +332,13 @@ enum IdentityType {
   PASSPORT
   DRIVER_LICENSE
   NATIONAL_ID
+}
+
+enum BillType {
+  ELECTRICITY
+  WATER
+  GAS
+  CABLE_TV
 }
 
 enum UserType {
