@@ -4,7 +4,7 @@ import { Type } from 'class-transformer';
 import { BillType, IdentityType } from '@prisma/client';
 
 export class UtilityVerificationDto {
-  @ApiProperty()
+  @ApiProperty({ enum: BillType })
   @IsNotEmpty()
   @IsEnum(BillType)
   readonly utilityType: BillType;

@@ -3,12 +3,7 @@ import { UserType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
     IsEmail,
-    IsEnum,
-    IsInt,
     IsNotEmpty,
-    IsOptional,
-    IsString,
-    MinLength,
 } from 'class-validator';
 
 export class SendPasswordOtpDto {

@@ -9,7 +9,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 
 export class LoginDto {
-  @ApiProperty()
+  @ApiProperty({ example: 'john.doe@example.com' })
   @IsNotEmpty()
   @IsEmail()
   @Transform(({ value }) =>
@@ -17,7 +17,7 @@ export class LoginDto {
   )
   readonly email: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'fhgtytye@r4d12' })
   @IsNotEmpty()
   @IsString()
   @Length(8)

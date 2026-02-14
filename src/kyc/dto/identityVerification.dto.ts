@@ -4,7 +4,7 @@ import { Type } from 'class-transformer';
 import { IdentityType } from '@prisma/client';
 
 export class IdentityVerificationDto {
-  @ApiProperty()
+  @ApiProperty({ enum: IdentityType })
   @IsNotEmpty()
   @IsEnum(IdentityType)
   readonly identityType: IdentityType;

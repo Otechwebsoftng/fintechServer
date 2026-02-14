@@ -275,7 +275,7 @@ async function main() {
 
   const superAdmin = await prisma.user.upsert({
     where: { email: 'admin-whitelist@yopmail.com' },
-    update: { roleId: supportAdmin.id },
+    update: { roleId: superAdminRole.id },
     create: {
       firstName: 'Super',
       lastName: 'Admin',

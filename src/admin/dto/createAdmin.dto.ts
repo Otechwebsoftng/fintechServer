@@ -9,19 +9,19 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 
 export class CreateAdminDto {
-  @ApiProperty()
+  @ApiProperty({ example: 'John' })
   @IsNotEmpty()
   @IsString()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   readonly firstName: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'Doe' })
   @IsNotEmpty()
   @IsString()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   readonly lastName: string;
 
-  @ApiProperty()
+  @ApiProperty({ example: 'john.doe@example.com' })
   @IsNotEmpty()
   @IsEmail()
   @Transform(({ value }) =>
@@ -29,7 +29,7 @@ export class CreateAdminDto {
   )
   readonly email: string;
 
-  @ApiProperty()
+  @ApiProperty({example: 'w12234237863878hhjeg653622'})
   @IsOptional()
   @IsString()
   readonly roleId: string;
