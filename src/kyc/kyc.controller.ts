@@ -3,16 +3,20 @@ import {
   Body,
   Controller,
   Get,
-  Param,
   Patch,
   Post,
-  Put,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { KycService } from './kyc.service';
-import { ApiOperation, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiTags,
+  ApiBearerAuth,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { IdentityType, User } from '@prisma/client';
@@ -62,6 +66,31 @@ export class KycController {
     @CurrentUser() user: User,
   ) {
     return this.kycService.updateTaxAddress(user, payload);
+  }
+
+  @ApiOperation({
+    description: 'Verify Tier 1 ID Type',
+    summary: 'Verify user Tier 1 ID Type with external service provider',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: IdentityType,
+    description:
+      'Type of Tier 1 ID to verify (e.g. national_id, drivers_license, passport)',
+  })
+  @Patch('verify-tier1-id')
+  @UseGuards(AuthGuard())
+  async verifyTier1Id(
+    @Body() payload: BvnDto,
+    @Query('type') type: IdentityType,
+    @CurrentUser() user: User,
+  ) {
+    if (!type) {
+      throw new BadRequestException('type query parameter is required');
+    }
+    const userId = user.id;
+    return this.kycService.verifyTier1IdType(userId, type, payload);
   }
 
   @ApiOperation({

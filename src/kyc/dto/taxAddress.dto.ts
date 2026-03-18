@@ -1,7 +1,4 @@
-import {
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class TaxAddressDto {
@@ -20,7 +17,7 @@ export class TaxAddressDto {
   @IsString()
   readonly city?: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({})
   @IsOptional()
   @IsString()
   readonly street?: string;

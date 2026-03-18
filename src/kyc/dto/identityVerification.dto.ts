@@ -12,12 +12,12 @@ export class IdentityVerificationDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  readonly issuedCountry: string;
+  readonly identityTypeNo: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  readonly identityTypeNo: string;
+  readonly issuedCountry: string;
 
   @ApiProperty({ example: '2020-01-15' })
   @IsNotEmpty()

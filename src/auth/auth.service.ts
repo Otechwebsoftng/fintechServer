@@ -12,12 +12,12 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { MailService } from 'src/mail/mail.service';
 import { CustomLogger } from 'src/custom.logger';
 import { AccountStatus, OtpType, User, UserType } from '@prisma/client';
-import { use } from 'passport';
+// import { use } from 'passport';
 import APIFeatures from 'src/utils/apiFeatures.utils';
 import { ActivateAccountDto } from 'src/users/dto/activateAccount.dto';
 import { Utility } from 'src/helpers/utilities.service';
 import { ConfigService } from '@nestjs/config';
-import { config } from 'process';
+// import { config } from 'process';
 const PASSWORD_SALT = 10;
 @Injectable()
 export class AuthService {
@@ -36,7 +36,7 @@ export class AuthService {
       userType: UserType.USER,
     });
 
-    if (!user) throw new NotFoundException('Invalid email or Password!');
+    if (!user) throw new UnauthorizedException('Invalid email or password');
 
     const isPasswordMatch = await bcrypt.compare(
       loginDto.password,
@@ -94,7 +94,7 @@ export class AuthService {
     }
 
     const token = await APIFeatures.assignJwtToken(user, this.jwtService);
-    const { password: _, ...userWithoutPassword } = user;
+    // const { password: _, ...userWithoutPassword } = user;
 
     const result = {
       id: user.id,
@@ -116,7 +116,7 @@ export class AuthService {
       },
       data: {
         otp: hashOtp,
-        otpType:OtpType.ADMIN_LOGIN,
+        otpType: OtpType.ADMIN_LOGIN,
         otpExpiresIn: otp.otpExpires,
       },
     });
@@ -138,11 +138,11 @@ export class AuthService {
   }
 
   async verifyAdmin(user: User, activateAccountDto: ActivateAccountDto) {
-    if(activateAccountDto.otpType !== OtpType.ADMIN_LOGIN){
-      throw new BadRequestException('Invalid Otp Type')
+    if (activateAccountDto.otpType !== OtpType.ADMIN_LOGIN) {
+      throw new BadRequestException('Invalid Otp Type');
     }
     const { otp } = activateAccountDto;
-    const decryptOtp = await bcrypt.compare(activateAccountDto.otp, user.otp)
+    const decryptOtp = await bcrypt.compare(activateAccountDto.otp, user.otp);
 
     if (!decryptOtp) {
       throw new BadRequestException('Expired or incorrect "OTP"');
@@ -177,13 +177,13 @@ export class AuthService {
   }
 
   async getUserAuthData(user: any) {
-    const refreshToken = await this.generateRefeshToken(user.id);
+    const refreshToken = await this.generateRefreshToken(user.id);
     const token = await APIFeatures.assignJwtToken(user, this.jwtService);
     const userWithoutPassword = this.sanitizeUser(user);
     return { user: userWithoutPassword, token, refreshToken };
   }
 
-  async generateRefeshToken(userId: string) {
+  async generateRefreshToken(userId: string) {
     // expire existing token
     const expiredDate = new Date().setDate(new Date().getDate() - 1);
 
@@ -192,7 +192,7 @@ export class AuthService {
       data: { expiresAt: new Date(expiredDate).toISOString() },
     });
 
-    let expiresAt = new Date();
+    const expiresAt = new Date();
     expiresAt.setSeconds(
       expiresAt.getSeconds() +
         Number(this.configService.get<string>('REFRESH_TOKEN_EXPIRY')),

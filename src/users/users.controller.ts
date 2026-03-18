@@ -4,12 +4,16 @@ import {
   Get,
   Param,
   Patch,
-  PayloadTooLargeException,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { AuthGuard } from '@nestjs/passport';
 import { AccountStatus, KycLevel, User } from '@prisma/client';
@@ -19,7 +23,6 @@ import { ActivateAccountDto } from './dto/activateAccount.dto';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { SendPasswordOtpDto } from './dto/sendPasswordOtp.dto';
 import { ResetPasswordDto } from './dto/resetPassword.dto';
-import { Sign } from 'crypto';
 import { SignUpDto } from './dto/signup.dto';
 import { TransactionPinDto } from './dto/transactionPin.dto';
 import { UserTagDto } from './dto/userTag.dto';
@@ -67,7 +70,6 @@ export class UsersController {
     enum: KycLevel,
     description: 'Filter users by verification level',
   })
-
   @UseGuards(AuthGuard(), PermissionsGuard)
   @Permissions('super_admin.full_access', 'support_admin')
   async getAllUsers(
@@ -78,7 +80,14 @@ export class UsersController {
     @Query('country') country?: string,
     @Query('verificationLevel') verificationLevel?: KycLevel,
   ) {
-    return this.usersService.getAll(page, pageSize, status, search, country, verificationLevel);
+    return this.usersService.getAll(
+      page,
+      pageSize,
+      status,
+      search,
+      country,
+      verificationLevel,
+    );
   }
 
   @Patch('/set-transaction-pin')
@@ -112,10 +121,7 @@ export class UsersController {
     description: 'Create a new user Account',
     summary: 'Signup new users',
   })
-  async signup(
-    @Body() payload: SignUpDto,
-    @CurrentUser() user: User,
-  ): Promise<{}> {
+  async signup(@Body() payload: SignUpDto) {
     return this.usersService.createUser(payload);
   }
 
@@ -125,17 +131,14 @@ export class UsersController {
     summary: 'Allows user to create a user tag',
   })
   @UseGuards(AuthGuard())
-  async createUserTag(
-    @Body() payload: UserTagDto,
-    @CurrentUser() user: User,
-  ): Promise<{}> {
+  async createUserTag(@Body() payload: UserTagDto, @CurrentUser() user: User) {
     return this.usersService.createUserTag(user.id, payload);
   }
 
   @Patch('/resend-otp')
   @ApiOperation({ summary: 'Resend OTP to a user' })
   @UseGuards(AuthGuard())
-  async resendOTP(@CurrentUser() user: User): Promise<{}> {
+  async resendOTP(@CurrentUser() user: User) {
     return this.usersService.resendOTP(user);
   }
 
@@ -155,9 +158,7 @@ export class UsersController {
     description: ' Verify OTP for password reset',
     summary: 'Users can verify OTP for password reset.',
   })
-  async verifyPassword(
-    @Body() payload: ActivateAccountDto
-  ) {
+  async verifyPassword(@Body() payload: ActivateAccountDto) {
     return this.usersService.passwordOtpVerify(payload);
   }
 

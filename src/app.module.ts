@@ -16,7 +16,7 @@ import { WalletModule } from './wallet/wallet.module';
 import { BeneficiaryModule } from './beneficiary/beneficiary.module';
 // import { WebhooksModule } from './webhooks/webhooks.module';
 import { VirtualAccountModule } from './virtual-account/virtual-account.module';
-
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
@@ -39,7 +39,7 @@ import { VirtualAccountModule } from './virtual-account/virtual-account.module';
     // WebhooksModule,
     VirtualAccountModule,
   ],
-  controllers: [],
+  controllers: [AppController],
   providers: [
     {
       provide: APP_FILTER,

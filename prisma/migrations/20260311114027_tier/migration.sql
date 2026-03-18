@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "User" ALTER COLUMN "kycLevel" SET DEFAULT 'TIER 0';

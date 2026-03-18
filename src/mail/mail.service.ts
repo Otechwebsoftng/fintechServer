@@ -1,8 +1,6 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { MailerService } from '@nestjs-modules/mailer';
 import { ConfigService } from '@nestjs/config';
-import { User } from '@prisma/client';
-import { template } from 'handlebars';
 import { CustomLogger } from 'src/custom.logger';
 import axios from 'axios';
 import * as fs from 'fs';

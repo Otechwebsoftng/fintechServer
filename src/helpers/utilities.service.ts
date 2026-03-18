@@ -4,6 +4,7 @@ import * as crypto from 'crypto';
 import { v2 as cloudinary } from 'cloudinary';
 import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
 export interface CloudinaryUploadResponse {
   public_id: string;
   url: string;
@@ -11,8 +12,7 @@ export interface CloudinaryUploadResponse {
 }
 
 export class Utility {
-
-    private static isCloudinaryConfigured = false;
+  private static isCloudinaryConfigured = false;
 
   private static ensureCloudinaryConfig() {
     if (!this.isCloudinaryConfigured) {

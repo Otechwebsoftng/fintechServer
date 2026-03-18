@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { AirwallexService } from './airwallex.service';
-import { VerificationService } from './verification-service';
+import { FincraVerificationService } from './fincra.verification-service';
+import { DojahVerificationService } from './dojah.verification';
 
 @Module({
   imports: [ConfigModule],
-  providers: [AirwallexService, VerificationService],
-  exports: [AirwallexService, VerificationService],
+  providers: [FincraVerificationService, DojahVerificationService],
+  exports: [FincraVerificationService, DojahVerificationService],
 })
 export class VendorsModule {}

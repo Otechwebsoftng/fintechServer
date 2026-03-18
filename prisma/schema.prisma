@@ -26,6 +26,8 @@ model User {
   firstName                  String
   lastName                   String
   otherName                  String?
+  personIdNGN                String?                    @unique
+  personIdUSD                String?                    @unique
   userTag                    String?                    @unique
   email                      String                     @unique
   phoneNumber                String?                    @unique
@@ -37,9 +39,12 @@ model User {
   otpType                    OtpType?
   otpExpiresIn               DateTime?
   userType                   UserType                   @default(USER)
-  kycLevel                   KycLevel                   @default(TIER_1)
+  kycLevel                   KycLevel                   @default(TIER_0)
   bvn                        String?                    @unique
   bvnVerified                DocumentVerificationStatus @default(NOT_VERIFIED)
+  tier1idType                IdentityType?              @default(NIN)
+  tier1idNo                  String?                    @unique
+  tier1idVerified            DocumentVerificationStatus @default(NOT_VERIFIED)
   identityType               IdentityType?
   identityTypeNo             String?
   issuedDate                 DateTime?
@@ -204,12 +209,17 @@ model Payment {
 
 model Wallet {
   id                String              @id @default(uuid())
+  virtualAccountId  String?             @unique
   userId            String
   currency          Currency
   accountType       WalletType?         @default(INDIVIDUAL)
+  holderId          String?
+  holderType        String?             @db.VarChar(50)
   status            WalletStatus        @default(PENDING)
+  graphStatus       String?             @db.VarChar(20)
   merchantReference String?             @db.VarChar(64)
   bankName          String?             @db.VarChar(100)
+  bankCode          String?
   accountNumber     String?             @unique
   channelReference  String?             @db.VarChar(64)
   isDeleted         Boolean             @default(false)
@@ -302,6 +312,7 @@ enum DocumentVerificationStatus {
 }
 
 enum KycLevel {
+  TIER_0 @map("TIER 0")
   TIER_1 @map("TIER 1")
   TIER_2 @map("TIER 2")
 }
@@ -327,11 +338,23 @@ enum Currency {
   CAD
 }
 
+enum Country {
+  NG
+  US
+}
+
+enum employeeStatus {
+  EMPLOYED
+  UNEMPLOYED
+  STUDENT
+  RETIRED
+  SELF_EMPLOYED
+}
+
 enum IdentityType {
   NIN
   PASSPORT
   DRIVER_LICENSE
-  NATIONAL_ID
 }
 
 enum BillType {
@@ -378,4 +401,29 @@ enum OtpType {
   CHANGE_PASSWORD
   FORGOT_PASSWORD
   ADMIN_LOGIN
+}
+
+enum EmploymentStatus {
+  employed
+  unemployed
+  student
+  retired
+  self_employed
+}
+
+enum PrimaryPurposeUSDAccount {
+  business
+  personal
+  salary
+  freelance
+}
+
+enum SourceOfFunds {
+  salary
+  savings
+  business
+  freelance
+  investment
+  government_benefits
+  pension
 }

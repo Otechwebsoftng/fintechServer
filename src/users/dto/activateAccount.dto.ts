@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { OtpType } from '@prisma/client';
-import { Type } from 'class-transformer';
-import { IsEnum, IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
 
 export class ActivateAccountDto {
   @ApiProperty({ enum: OtpType })

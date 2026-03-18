@@ -5,7 +5,7 @@ export class BvnDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
-  readonly bvn: string;
+  readonly number: string;
 
   // @ApiProperty()
   // @IsNotEmpty()

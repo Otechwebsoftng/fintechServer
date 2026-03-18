@@ -3,7 +3,6 @@ import { MenuService } from './menu.service';
 import { MenuController } from './menu.controller';
 import { AuthModule } from 'src/auth/auth.module';
 import { UsersModule } from 'src/users/users.module';
-import { PrismaModule } from 'src/prisma/prisma.module';
 import { PassportModule } from '@nestjs/passport';
 import { JwtService } from '@nestjs/jwt';
 import { RoleModule } from 'src/role/role.module';
@@ -14,7 +13,6 @@ import { CustomLogger } from 'src/custom.logger';
   imports: [
     AuthModule,
     UsersModule,
-    PrismaModule,
     PassportModule,
     RoleModule,
     PermissionModule,

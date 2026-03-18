@@ -1,17 +1,22 @@
 import {
   BadRequestException,
+  ConflictException,
   forwardRef,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Currency, PaymentEntry } from '@prisma/client';
-import { Exclude } from 'class-transformer';
+import {
+  Currency,
+  PaymentEntry,
+  WalletStatus,
+  WalletType,
+} from '@prisma/client';
 import { CustomLogger } from 'src/custom.logger';
-import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
 import { FundWalletDto } from './dto/fund.dto';
+import { GraphService } from 'src/vendors/graph.service';
 
 @Injectable()
 export class WalletService {
@@ -20,7 +25,7 @@ export class WalletService {
     private readonly usersService: UsersService,
     private readonly prisma: PrismaService,
     private readonly logger: CustomLogger,
-    private readonly mailService: MailService,
+    private readonly graphService: GraphService,
   ) {}
 
   async getOne(criteria: any) {
@@ -50,49 +55,157 @@ export class WalletService {
     return wallets;
   }
 
-  async createUserWallet(userId: string, tx?: any) {
-    const createWallets = async (prisma: any) => {
-      // Check if wallets already exist for this user
-      const existingWallets = await prisma.wallet.findMany({
-        where: { userId },
+  async createVirtualNGNAccount(userId: string, graphPersonId: string) {
+    try {
+      console.log(
+        'Creating virtual account for userId:',
+        userId,
+        'with graphPersonId:',
+        graphPersonId,
+      );
+
+      // Check if NGN wallet already exists for this user
+      const existingWallet = await this.getOne({
+        userId,
+        currency: Currency.NGN,
       });
 
-      if (existingWallets.length > 0) {
-        throw new BadRequestException('This user already has wallets');
+      if (existingWallet) {
+        this.logger.log(
+          `NGN wallet already exists for user ${userId}`,
+          'WalletService',
+        );
+        const { isDeleted, createdAt, updatedAt, ...walletData } =
+          existingWallet;
+        return {
+          message: 'NGN wallet already exists',
+          data: walletData,
+        };
       }
 
-      // Create wallets for all supported currencies
-      const currencies = [
-        Currency.NGN,
-        Currency.USD,
-        Currency.EUR,
-        Currency.CAD,
-        Currency.GBP,
-      ];
+      // Generate Graph NGN account
+      const graphResponse =
+        await this.graphService.createVirtualAccount(graphPersonId);
 
-      const wallets = await Promise.all(
-        currencies.map((currency) =>
-          prisma.wallet.create({
-            data: { userId, currency },
-          }),
-        ),
+      // Create wallet in database
+      const newWallet = await this.prisma.wallet.create({
+        data: {
+          userId: userId,
+          currency: Currency.NGN,
+          accountType: WalletType.INDIVIDUAL,
+          holderId: graphResponse.holder_id,
+          holderType: graphResponse.holder_type,
+          virtualAccountId: graphResponse.id,
+          status: WalletStatus.APPROVED,
+          bankName: graphResponse.bank_name,
+          bankCode: graphResponse.bank_code,
+          accountNumber: graphResponse.account_number,
+          graphStatus: graphResponse.status,
+        },
+      });
+
+      const { isDeleted, createdAt, updatedAt, ...walletData } = newWallet;
+
+      this.logger.log(
+        `NGN virtual account created successfully for user ${userId}`,
       );
 
       return {
-        ngnWallet: wallets[0],
-        usdWallet: wallets[1],
-        eurWallet: wallets[2],
-        cadWallet: wallets[3],
-        gbpWallet: wallets[4],
+        message: 'NGN virtual account created successfully',
+        data: walletData,
       };
-    };
+    } catch (error) {
+      this.logger.error(
+        `Failed to create NGN virtual account for user ${userId}: ${error.message}`,
+        error,
+      );
 
-    // If transaction is provided, use it; otherwise create a new transaction
-    if (tx) {
-      return createWallets(tx);
+      if (error.code === 'P2002') {
+        throw new ConflictException(
+          'NGN virtual account already exists for this user',
+        );
+      }
+
+      throw new BadRequestException(
+        'Failed to create NGN virtual account. Please try again later.',
+      );
     }
+  }
+  async createVirtualUSDAccount(userId: string, graphPersonId: string) {
+    try {
+      console.log(
+        'Creating virtual account for userId:',
+        userId,
+        'with graphPersonId:',
+        graphPersonId,
+      );
 
-    return this.prisma.$transaction(createWallets);
+      // Check if USD wallet already exists for this user
+      const existingWallet = await this.getOne({
+        userId,
+        currency: Currency.USD,
+      });
+
+      if (existingWallet) {
+        this.logger.log(
+          `USD wallet already exists for user ${userId}`,
+          'WalletService',
+        );
+        const { isDeleted, createdAt, updatedAt, ...walletData } =
+          existingWallet;
+        return {
+          message: 'USD wallet already exists',
+          data: walletData,
+        };
+      }
+
+      // Generate Graph USD account
+      const graphResponse =
+        await this.graphService.createVirtualAccount(graphPersonId);
+
+      // Create wallet in database
+      const newWallet = await this.prisma.wallet.create({
+        data: {
+          userId: userId,
+          currency: Currency.USD,
+          accountType: WalletType.INDIVIDUAL,
+          holderId: graphResponse.holder_id,
+          holderType: graphResponse.holder_type,
+          virtualAccountId: graphResponse.id,
+          status: WalletStatus.APPROVED,
+          bankName: graphResponse.bank_name,
+          bankCode: graphResponse.bank_code,
+          accountNumber: graphResponse.account_number,
+          graphStatus: graphResponse.status,
+        },
+      });
+
+      const { isDeleted, createdAt, updatedAt, ...walletData } = newWallet;
+
+      this.logger.log(
+        `USD virtual account created successfully for user ${userId}`,
+      );
+
+      return {
+        message: 'USD virtual account created successfully',
+        data: walletData,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to create USD virtual account for user ${userId}: ${error.message}`,
+        error,
+      );
+
+      if (error.code === 'P2002') {
+        throw new ConflictException(
+          'USD virtual account already exists for this user',
+        );
+      }
+
+      throw new BadRequestException(
+        'Failed to create USD virtual account. Please try again later.',
+      );
+    }
   }
 
   async getWalletBalance(userId: string, currency: Currency) {
@@ -128,7 +241,6 @@ export class WalletService {
   }
 
   async fundOwnWallet(userId: string, payload: FundWalletDto) {
-  
     if (payload.amount <= 0) {
       throw new BadRequestException('Amount must be greater than zero');
     }

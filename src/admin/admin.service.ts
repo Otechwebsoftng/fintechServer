@@ -26,12 +26,7 @@ export class AdminService {
     private readonly logger: CustomLogger,
   ) {}
 
-  async getAll(
-    page?: number,
-    pageSize?: number,
-    search?: string,
-
-  ) {
+  async getAll(page?: number, pageSize?: number, search?: string) {
     const shouldPaginate =
       page && pageSize && !isNaN(Number(page)) && !isNaN(Number(pageSize));
 
@@ -41,10 +36,6 @@ export class AdminService {
     const whereClause: any = {
       userType: UserType.ADMIN,
     };
-
-
-
-
 
     if (search) {
       whereClause.OR = [
@@ -113,11 +104,7 @@ export class AdminService {
     };
   }
 
-  async getAllTrashedAdmins(
-    page?: number,
-    pageSize?: number,
-    search?: string,
-  ) {
+  async getAllTrashedAdmins(page?: number, pageSize?: number, search?: string) {
     const shouldPaginate =
       page && pageSize && !isNaN(Number(page)) && !isNaN(Number(pageSize));
 
@@ -126,8 +113,8 @@ export class AdminService {
 
     const whereClause: any = {
       userType: UserType.ADMIN,
-      isDeleted:true,
-      status:AccountStatus.INACTIVE
+      isDeleted: true,
+      status: AccountStatus.INACTIVE,
     };
 
     if (search) {

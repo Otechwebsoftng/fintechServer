@@ -134,14 +134,16 @@ export class UsersService {
     const hasPrevious = shouldPaginate ? page > 1 : false;
 
     const usersWithoutPassword = users.map((user) => {
+      /* eslint-disable @typescript-eslint/no-unused-vars */
       const {
-        password: _,
+        password,
         transactionPin,
         isDeleted,
         isEmailVerified,
         otp,
         ...userWithoutPassword
       } = user;
+      /* eslint-enable @typescript-eslint/no-unused-vars */
       return userWithoutPassword;
     });
 
@@ -232,15 +234,6 @@ export class UsersService {
           otpType: OtpType.SIGN_UP,
         },
       });
-
-      // Create wallets for user (NGN and USD by default)
-      try {
-        await this.walletService.createUserWallet(user.id, tx);
-      } catch (walletError) {
-        this.logger.error('Wallet creation failed during signup', walletError);
-        throw new BadRequestException('Failed to create user wallets');
-      }
-
       return user;
     });
 
@@ -303,6 +296,10 @@ export class UsersService {
   }
 
   async activateAccount(user: User, payload: ActivateAccountDto) {
+    if (user.otp === null) {
+      throw new BadRequestException('Resend OTP to activate your account');
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { otp, otpType } = payload;
 
     if (otpType !== OtpType.SIGN_UP) {
@@ -311,7 +308,7 @@ export class UsersService {
 
     const currentTime = new Date();
 
-    const decryptOtp = await bcrypt.compare(payload.otp, user.otp);
+    const decryptOtp = await bcrypt.compare(payload?.otp, user.otp);
 
     if (!decryptOtp) {
       throw new BadRequestException('Expired or incorrect "OTP"');
@@ -429,6 +426,7 @@ export class UsersService {
   }
 
   async passwordOtpVerify(payload: ActivateAccountDto) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const currentTime = new Date();
 
     const hashOtp = await bcrypt.hash(payload.otp, PASSWORD_SALT);

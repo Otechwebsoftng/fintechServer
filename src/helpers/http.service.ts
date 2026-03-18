@@ -1,8 +1,10 @@
 import { HttpException, InternalServerErrorException } from '@nestjs/common';
-import axios from 'axios';
+// import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 
 export class APIRequest {
   option: Record<string, unknown>;
+  httpClient: AxiosInstance;
 
   constructor(options: Record<string, unknown>) {
     this.option = Object.assign(

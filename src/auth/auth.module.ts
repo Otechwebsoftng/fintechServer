@@ -2,16 +2,13 @@ import { forwardRef, Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { PassportModule } from '@nestjs/passport';
-import { JwtModule, JwtService } from '@nestjs/jwt';
+import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UsersModule } from 'src/users/users.module';
-import { UsersService } from 'src/users/users.service';
-import { PrismaService } from 'src/prisma/prisma.service';
 import { JwtStrategy } from './jwt.strategy';
-import { MailService } from 'src/mail/mail.service';
 import { MailModule } from 'src/mail/mail.module';
 import { CustomLogger } from 'src/custom.logger';
-import { WalletService } from 'src/wallet/wallet.service';
+import { WalletModule } from 'src/wallet/wallet.module';
 import { AirwallexService } from 'src/vendors/airwallex.service';
 
 @Module({
@@ -31,18 +28,11 @@ import { AirwallexService } from 'src/vendors/airwallex.service';
       },
     }),
     ConfigModule,
-    // forwardRef(() => UsersModule),
+    forwardRef(() => UsersModule),
     MailModule,
+    forwardRef(() => WalletModule),
   ],
-  providers: [
-    AuthService,
-    UsersService,
-    PrismaService,
-    CustomLogger,
-    JwtStrategy,
-    WalletService,
-    AirwallexService,
-  ],
+  providers: [AuthService, CustomLogger, JwtStrategy, AirwallexService],
   controllers: [AuthController],
   exports: [AuthService, JwtStrategy, PassportModule],
 })

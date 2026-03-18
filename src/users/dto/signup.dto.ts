@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { AccountStatus, UserType } from '@prisma/client';
+import { UserType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsEmail,
@@ -46,5 +46,4 @@ export class SignUpDto {
   @IsEnum(UserType)
   @IsOptional()
   readonly userType: UserType;
-
 }

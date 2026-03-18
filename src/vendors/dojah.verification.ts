@@ -1,8 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APIRequest } from '../helpers/http.service';
-import { Utility } from 'src/helpers/utilities.service';
-import { BvnDto } from 'src/kyc/dto/bvn.dto';
 
 @Injectable()
 export class DojahVerificationService {
@@ -25,6 +23,21 @@ export class DojahVerificationService {
     };
   }
 
+  async verifyBvn(number: string) {
+    if (!/^[0-9]{11}$/.test(number)) {
+      throw new BadRequestException('Verification failed, invalid BVN');
+    }
+
+    const url = '/kyc/bvn/full?bvn=' + number;
+    const { entity = false, error = false } = await this.sendGetRequest(url);
+    if (error || !entity) throw new BadRequestException('Verification failed');
+
+    return {
+      status: 'successful',
+      message: 'Verification completed successfully',
+      data: entity ?? null,
+    };
+  }
 
   async verifyNin(number: string) {
     if (!/^[0-9]{11}$/.test(number))
@@ -57,14 +70,8 @@ export class DojahVerificationService {
   }
 
   async internationalPassport(number: string) {
-    console.log('Verifying international passport number:', number);
-    // if (!/^[a-zA-Z]{3}([ -]{1})?[A-Z0-9]{6,12}$/i.test(number))
-    //   throw new BadRequestException(
-    //     'Verification failed, invalid passport number',
-    //   );
     const url = '/kyc/passport?passport_number=' + number;
     const { entity = false, error = false } = await this.sendGetRequest(url);
-    console.log('Passport verification response:', { entity, error });
     if (error || !entity) throw new BadRequestException('Verification failed');
 
     return {
@@ -74,9 +81,12 @@ export class DojahVerificationService {
     };
   }
 
-  async verifyUtilityBillImage(payload:any) {
+  async verifyUtilityBillImage(payload: any) {
     const url = '/document/analysis/utility_bill';
-    const { entity = false, error = false } = await this.sendPostRequest(url, payload);
+    const { entity = false, error = false } = await this.sendPostRequest(
+      url,
+      payload,
+    );
     if (error || !entity) throw new BadRequestException('Verification failed');
 
     return {

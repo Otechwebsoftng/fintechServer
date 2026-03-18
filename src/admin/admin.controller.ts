@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
   Patch,
@@ -11,10 +10,15 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { ApiOperation, ApiParam, ApiQuery, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/auth/guard/role.guard';
-import { Roles } from 'src/auth/decorators/roles.decorator';
 import { CreateAdminDto } from './dto/createAdmin.dto';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { User } from '@prisma/client';
@@ -99,10 +103,7 @@ export class AdminController {
   })
   @UseGuards(AuthGuard(), PermissionsGuard)
   @Permissions('admin.view_all')
-  async dashboard(
-    @Query('page') page?: number,
-    @Query('pageSize') pageSize?: number,
-  ) {
+  async dashboard() {
     return await this.adminService.dashboardStats();
   }
 

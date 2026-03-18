@@ -15,6 +15,9 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {});
   const configService = app.get<ConfigService>(ConfigService);
 
+  // Enable cookie parser to read cookies from requests
+  app.use(cookieParser());
+
   // Security: Enable Helmet for HTTP security headers
   app.use(
     helmet({
@@ -30,7 +33,9 @@ async function bootstrap() {
     }),
   );
 
-  app.setGlobalPrefix('api/v1/');
+  app.setGlobalPrefix('api/v1/', {
+    exclude: ['/'],
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

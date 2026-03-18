@@ -35,12 +35,14 @@ export class AuthController {
   ) {
     const result = await this.authService.login(loginDto);
     res.cookie('refreshToken', result.refreshToken, {
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
     });
     return result;
   }
+
   @Post('/admin/login')
   @ApiOperation({
     summary: 'Login Admin Users',

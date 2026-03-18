@@ -3,7 +3,6 @@ import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { JwtService } from '@nestjs/jwt';
 import { UsersModule } from 'src/users/users.module';
-import { PrismaModule } from 'src/prisma/prisma.module';
 import { MailModule } from 'src/mail/mail.module';
 import { RoleModule } from 'src/role/role.module';
 import { PassportModule } from '@nestjs/passport';
@@ -15,7 +14,6 @@ import { CustomLogger } from 'src/custom.logger';
     AdminModule,
     AuthModule,
     UsersModule,
-    PrismaModule,
     PassportModule,
     MailModule,
     RoleModule,
