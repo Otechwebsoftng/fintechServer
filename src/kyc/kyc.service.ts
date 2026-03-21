@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -66,6 +65,8 @@ export class KycService {
     }
   }
 
+  //Tier 1 verification
+
   async verifyBvn(userId: string, payload: BvnDto) {
     // Validate BVN format (11 digits)
     if (!/^[0-9]{11}$/.test(payload.number)) {
@@ -89,7 +90,7 @@ export class KycService {
     // Check if BVN is already used by another user
     const existingBvn = await this.usersService.getOne({
       bvn: payload.number,
-      id: { not: userId },
+      // id: { not: userId },
     });
 
     if (existingBvn) {
@@ -133,7 +134,7 @@ export class KycService {
     } catch (error) {
       if (error.code === 'P2002') {
         throw new ConflictException(
-          'BVN already registered to another account',
+          `BVN already registered to another account: ${error.message}`,
         );
       }
       throw error;
@@ -185,17 +186,46 @@ export class KycService {
     };
   }
 
-  async verifyTier1IdType(userId: string, type: IdentityType, payload: BvnDto) {
-    const idNumber = payload.number;
+  async verifyTier1IdType(
+    userId: string,
+    type: IdentityType,
+    payload: BvnDto,
+    file?: any,
+  ) {
+    const idNumber = payload.number.trim();
     const normalizedType = type.trim();
+
+    if (!file) {
+      throw new BadRequestException('Utility bill image is required');
+    }
     const [user, duplicate] = await Promise.all([
       this.usersService.getOne({ id: userId }),
+
       // Prevent duplicate ID usage
       this.usersService.getOne({
         tier1idType: normalizedType,
         tier1idNo: idNumber,
       }),
     ]);
+
+    const cleanupImage = async (publicId?: string) => {
+      if (!publicId) return;
+      try {
+        await Utility.destroy(publicId);
+      } catch (err) {
+        this.logger.error('Cloudinary cleanup failed', err);
+      }
+    };
+
+    let uploaded;
+    try {
+      uploaded = await Utility.uploadImage(file, 'Person_Creation_tier1');
+    } catch (err) {
+      await cleanupImage(uploaded?.publicId);
+
+      this.logger.error('Utility bill upload failed', err);
+      throw new BadRequestException('Failed to upload utility bill');
+    }
 
     if (!user) throw new NotFoundException('User not found');
 
@@ -281,28 +311,15 @@ export class KycService {
         country: user.taxAddress?.country,
         postal_code: user.taxAddress?.zipCode,
       },
+      documents: [{ url: uploaded.url }],
     };
 
     // 1️Create Person (Graph)
 
-    let person;
-    try {
-      person = await this.graphService.createNGNPerson(personPayload);
-
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: { personIdNGN: person.id },
-      });
-    } catch (error) {
-      throw new InternalServerErrorException({
-        message: 'Person record creation failed',
-        service: 'GRAPH_PERSON',
-        detail: error.message,
-      });
-    }
+    const personId = await this.ensureGraphPerson(user, personPayload);
 
     // 2️ Create Wallet
-    await this.walletService.createVirtualNGNAccount(userId, person.id);
+    await this.walletService.createVirtualNGNAccount(user.id, personId);
 
     return {
       message:
@@ -310,6 +327,8 @@ export class KycService {
       kycLevel: KycLevel.TIER_1,
     };
   }
+
+  // end
 
   async verifyIdentityDocument(
     userId: string,
@@ -389,10 +408,9 @@ export class KycService {
         identityType: payload.identityType,
         identityTypeNo: payload.identityTypeNo,
         identityVerificationStatus: DocumentVerificationStatus.PASSED,
-        // kycLevel: KycLevel.TIER_2,
         ...payload,
-        identityTypeUrl: uploadedImage.url,
-        identityTypePublicId: uploadedImage.public_id,
+        identityTypeTier2Url: uploadedImage.url,
+        identityTypeTier2PublicId: uploadedImage.public_id,
         issuedPlace: result.data.issue_place,
         expiryDate: result.data.expiry_date
           ? new Date(result.data.expiry_date)
@@ -449,7 +467,7 @@ export class KycService {
     const user = await this.usersService.getOne({ id: userId });
     if (!user) throw new NotFoundException('User not found');
 
-    if (!user.identityTypeUrl) {
+    if (!user.identityTypeTier2Url) {
       throw new BadRequestException(
         'Identity document verification required before utility bill verification',
       );
@@ -547,7 +565,7 @@ export class KycService {
         postal_code: user.taxAddress?.zipCode,
       },
       documents: [
-        { type: mapIdType(user.identityType), url: user.identityTypeUrl },
+        { type: mapIdType(user.identityType), url: user.identityTypeTier2Url },
         { type: 'utility_bill', url: uploaded.url },
       ],
       background_information: {
@@ -559,67 +577,77 @@ export class KycService {
       },
     };
 
-    let usdPerson;
-    try {
-      usdPerson = await this.graphService.createUSDPerson(personPayload);
+    const personId = await this.ensureGraphPerson(user, personPayload);
 
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: {
-          personIdUSD: usdPerson.id,
-          utilityBillUrl: uploaded.url,
-          utilityBillPublicId: uploaded.public_id,
+    // If person already existed, upgrade KYC
+    if (user.graphPersonId) {
+      await this.graphService.updatePerson(personId, {
+        documents: [
+          {
+            type: mapIdType(user.identityType),
+            url: user.identityTypeTier2Url,
+          },
+          { type: 'utility_bill', url: uploaded.url },
+        ],
+        background_information: {
+          employment_status: payload.employmentStatus,
+          occupation: payload.occupation,
+          primary_purpose: payload.primary_purpose,
+          expected_monthly_inflow: payload.expected_monthly_inflow,
+          source_of_funds: payload.source_of_funds,
         },
-      });
-    } catch (err) {
-      throw new InternalServerErrorException({
-        message: 'USD person creation failed',
-        service: 'GRAPH_USD_PERSON',
-        detail: err.message,
       });
     }
 
-    // 4️Create USD Wallet
-    try {
-      await this.walletService.createVirtualUSDAccount(userId, usdPerson.id);
-    } catch (err) {
-      throw new InternalServerErrorException({
-        message: 'USD wallet creation failed',
-        service: 'WALLET_USD',
-        detail: err.message,
-      });
+    // 4️Create USD Wallet and EUR wallet
+    const results = await Promise.allSettled([
+      this.walletService.createVirtualUSDAccount(userId, personId),
+      this.walletService.createVirtualEURAccount(userId, personId),
+    ]);
+
+    const summary = {
+      usd: results[0],
+      eur: results[1],
+    };
+
+    if (summary.usd.status === 'rejected') {
+      this.logger.error('USD wallet creation failed', summary.usd.reason);
+    }
+
+    if (summary.eur.status === 'rejected') {
+      this.logger.error('EUR wallet creation failed', summary.eur.reason);
+    }
+
+    if (
+      summary.usd.status === 'rejected' &&
+      summary.eur.status === 'rejected'
+    ) {
+      throw new BadRequestException('Failed to create wallets');
     }
 
     // 5️Final DB Update
-    try {
-      const update = await this.prisma.user.update({
-        where: { id: userId },
-        data: {
-          utilityType: payload.utilityType,
-          meterNumber: verification.data.identity_info.meter_number,
-          isUtilityBillVerified: true,
-          kycLevel: KycLevel.TIER_2,
-          utilityBillUrl: uploaded.url,
-          utilityBillPublicId: uploaded.public_id,
-          utilityProviderName: verification.data.provider_name,
-          utilityBillIssuedDate: verification.data.bill_issue_date
-            ? new Date(verification.data.bill_issue_date)
-            : null,
-          isBillRecent: verification.data.metadata.is_recent,
-        },
-      });
-
-      return {
-        message: 'Utility bill verified successfully',
+    const update = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        utilityType: payload.utilityType,
+        meterNumber: verification.data.identity_info.meter_number,
+        isUtilityBillVerified: true,
         kycLevel: KycLevel.TIER_2,
-        isUtilityBillVerified: update.isUtilityBillVerified,
-      };
-    } catch (err) {
-      this.logger.error('Final DB update failed', err);
-      throw new InternalServerErrorException(
-        'Failed to update utility bill verification status',
-      );
-    }
+        utilityBillUrl: uploaded.url,
+        utilityBillPublicId: uploaded.public_id,
+        utilityProviderName: verification.data.provider_name,
+        utilityBillIssuedDate: verification.data.bill_issue_date
+          ? new Date(verification.data.bill_issue_date)
+          : null,
+        isBillRecent: verification.data.metadata.is_recent,
+      },
+    });
+
+    return {
+      message: 'Utility bill verified successfully',
+      kycLevel: KycLevel.TIER_2,
+      isUtilityBillVerified: update.isUtilityBillVerified,
+    };
   }
 
   private validateIdNumber(identityType: IdentityType, idNumber: string): void {
@@ -658,5 +686,21 @@ export class KycService {
       female: Gender.FEMALE,
     };
     return genderMap[gender] || Gender.NOT_SPECIFIED;
+  }
+
+  private async ensureGraphPerson(user: User, payload: any) {
+    if (user.graphPersonId) return user.graphPersonId;
+
+    console.log(`existing graph person: ${user.graphPersonId}`);
+
+    const person = await this.graphService.createPerson(payload);
+    console.log({ graphPersonPayload: payload, graphPerson: person });
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { graphPersonId: person.id },
+    });
+
+    return person.id;
   }
 }

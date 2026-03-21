@@ -23,6 +23,23 @@ export class APIRequest {
     }
   }
 
+  async put(url: string, body?: any) {
+    try {
+      const response = await axios.put(url, body, this.option);
+      return response.data;
+    } catch (err) {
+      throw this.handleError(err);
+    }
+  }
+  async patch(url: string, body?: any) {
+    try {
+      const response = await axios.patch(url, body, this.option);
+      return response.data;
+    } catch (err) {
+      throw this.handleError(err);
+    }
+  }
+
   async post(url: string, body?: any) {
     try {
       const response = await axios.post(url, body, this.option);

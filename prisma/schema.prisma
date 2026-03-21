@@ -26,8 +26,7 @@ model User {
   firstName                  String
   lastName                   String
   otherName                  String?
-  personIdNGN                String?                    @unique
-  personIdUSD                String?                    @unique
+  graphPersonId              String?                    @unique
   userTag                    String?                    @unique
   email                      String                     @unique
   phoneNumber                String?                    @unique
@@ -51,8 +50,8 @@ model User {
   expiryDate                 DateTime?
   issuedCountry              String?                    @db.VarChar(50)
   issuedPlace                String?                    @db.VarChar(50)
-  identityTypeUrl            String?
-  identityTypePublicId       String?
+  identityTypeTier2Url       String?
+  identityTypeTier2PublicId  String?
   identityVerificationStatus DocumentVerificationStatus @default(NOT_VERIFIED)
   utilityBillUrl             String?
   utilityBillPublicId        String?

@@ -1,105 +1,91 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  Inject,
-  forwardRef,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-// import axios, { AxiosInstance } from 'axios';
 import { APIRequest } from 'src/helpers/http.service';
-import { UsersService } from 'src/users/users.service';
 
 @Injectable()
 export class GraphService {
-  baseUrl: string;
-  secretKey: string;
-  headers: object;
-  //   httpClient: AxiosInstance;
   private readonly logger = new Logger(GraphService.name);
+  private readonly baseUrl: string;
+  private readonly headers: object;
 
-  constructor(
-    private configService: ConfigService,
-    @Inject(forwardRef(() => UsersService))
-    private usersService: UsersService,
-  ) {
+  constructor(private configService: ConfigService) {
+    const secretKey = this.configService.get<string>('GRAPH_SECRET_KEY');
+
     this.baseUrl = this.configService.get<string>('GRAPH_BASE_URL');
-    this.secretKey = this.configService.get<string>('GRAPH_SECRET_KEY');
 
     this.headers = {
-      Authorization: `Bearer ${this.secretKey}`,
+      Authorization: `Bearer ${secretKey}`,
       'Content-Type': 'application/json',
     };
   }
-  /**
-   * Generating permanent NGN account for a customer
-   */
-  async createNGNPerson(payload: any) {
+
+  /* ===============================
+     PERSON
+  =============================== */
+
+  async createPerson(payload: any) {
     try {
-      const result = await this.sendPostRequest('/person', payload);
-      return result.data;
+      const res = await this.post('/person', payload);
+      return res.data;
     } catch (error) {
-      throw new BadRequestException(`Failed to create person`);
+      this.logger.error('Create person failed', error);
+      throw new BadRequestException('Failed to create person');
     }
   }
 
-  async createUSDPerson(payload: any) {
+  async updatePerson(personId: string, payload: any) {
     try {
-      const result = await this.sendPostRequest('/person', payload);
-      return result.data;
+      const res = await this.patch(`/person/${personId}`, payload);
+      return res.data;
     } catch (error) {
-      throw new BadRequestException(`Failed to create person`);
+      this.logger.error('Update person failed', error);
+      throw new BadRequestException('Failed to update person');
     }
   }
 
-  async createVirtualAccount(personGraphId: string) {
-    // Prepare request payload for Graph API
-    const user = await this.usersService.getOne({
-      OR: [{ personIdNGN: personGraphId }, { personIdUSD: personGraphId }],
-    });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+  /* ===============================
+     VIRTUAL ACCOUNTS
+  =============================== */
 
-    // TIER_1 creates NGN account, TIER_2 creates USD account
-    // Users should have just 1 NGN and 1 USD account
-    const currency = user.kycLevel === 'TIER_2' ? 'USD' : 'NGN';
-
-    const requestPayload = {
-      person_id:
-        user.kycLevel === 'TIER_2' ? user.personIdUSD : user.personIdNGN,
-      label: 'Individual Virtual Account',
-      currency: currency,
-    };
-
+  async createVirtualAccount(personId: string, currency: string) {
     try {
-      const result = await this.sendPostRequest(
-        '/bank_account',
-        requestPayload,
-      );
+      const payload = {
+        person_id: personId,
+        label: 'Individual Virtual Account',
+        currency,
+      };
 
-      return result.data;
+      this.logger.log(`Creating ${currency} virtual account`);
+
+      const res = await this.post('/bank_account', payload);
+      return res.data;
     } catch (error) {
-      throw new BadRequestException(`Failed to create virtual account`);
+      this.logger.error('Virtual account creation failed', error);
+      throw new BadRequestException('Failed to create virtual account');
     }
   }
 
-  private async sendGetRequest(path: string) {
-    const url = this.baseUrl + path;
-    const httpService = new APIRequest({
-      headers: this.headers,
-    });
+  /* ===============================
+     HTTP HELPERS
+  =============================== */
 
-    return httpService.get(url);
+  private http() {
+    return new APIRequest({ headers: this.headers });
   }
 
-  private async sendPostRequest(path?: string, body?: any) {
-    const url = this.baseUrl + path;
-    const httpService = new APIRequest({
-      headers: this.headers,
-    });
+  private async get(path: string) {
+    return this.http().get(this.baseUrl + path);
+  }
 
-    return await httpService.post(url, body);
+  private async post(path: string, body: any) {
+    return this.http().post(this.baseUrl + path, body);
+  }
+
+  private async patch(path: string, body: any) {
+    return this.http().patch(this.baseUrl + path, body);
+  }
+
+  private async put(path: string, body: any) {
+    return this.http().put(this.baseUrl + path, body);
   }
 }

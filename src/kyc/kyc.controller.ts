@@ -51,6 +51,7 @@ export class KycController {
   @Post('verify-bvn')
   @UseGuards(AuthGuard())
   async verifyBvn(@Body() payload: BvnDto, @CurrentUser() user: User) {
+    console.log('Starting BVN verification for user:', user.id);
     const userId = user.id;
     return this.kycService.verifyBvn(userId, payload);
   }
@@ -81,16 +82,32 @@ export class KycController {
   })
   @Patch('verify-tier1-id')
   @UseGuards(AuthGuard())
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png') {
+          cb(null, true);
+        } else {
+          cb(
+            new BadRequestException('Only .jpg and .png files are allowed!'),
+            false,
+          );
+        }
+      },
+    }),
+  )
   async verifyTier1Id(
     @Body() payload: BvnDto,
     @Query('type') type: IdentityType,
+    @UploadedFile() file,
     @CurrentUser() user: User,
   ) {
     if (!type) {
       throw new BadRequestException('type query parameter is required');
     }
     const userId = user.id;
-    return this.kycService.verifyTier1IdType(userId, type, payload);
+    return this.kycService.verifyTier1IdType(userId, type, payload, file);
   }
 
   @ApiOperation({

@@ -3,13 +3,12 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
 import { Utility } from 'src/helpers/utilities.service';
 import * as bcrypt from 'bcrypt';
-import { AccountStatus, KycLevel, UserType } from '@prisma/client';
+import { AccountStatus, UserType } from '@prisma/client';
 import { MailService } from 'src/mail/mail.service';
 import { RoleService } from 'src/role/role.service';
 import { CustomLogger } from 'src/custom.logger';
