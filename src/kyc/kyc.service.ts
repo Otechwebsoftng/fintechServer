@@ -405,7 +405,7 @@ export class KycService {
     // Update user with verification details
     try {
       const updateData: any = {
-        identityType: payload.identityType,
+        Tier2IdType: payload.identityType,
         identityTypeNo: payload.identityTypeNo,
         identityVerificationStatus: DocumentVerificationStatus.PASSED,
         ...payload,

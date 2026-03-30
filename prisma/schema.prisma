@@ -50,6 +50,8 @@ model User {
   expiryDate                 DateTime?
   issuedCountry              String?                    @db.VarChar(50)
   issuedPlace                String?                    @db.VarChar(50)
+  Tier2IdType                IdentityType?              @default(PASSPORT)
+  Tier2IdNo                  String?                    @unique
   identityTypeTier2Url       String?
   identityTypeTier2PublicId  String?
   identityVerificationStatus DocumentVerificationStatus @default(NOT_VERIFIED)

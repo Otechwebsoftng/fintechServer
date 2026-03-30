@@ -29,7 +29,7 @@ export class GraphService {
       return res.data;
     } catch (error) {
       this.logger.error('Create person failed', error);
-      throw new BadRequestException('Failed to create person');
+      throw error;
     }
   }
 
@@ -39,7 +39,7 @@ export class GraphService {
       return res.data;
     } catch (error) {
       this.logger.error('Update person failed', error);
-      throw new BadRequestException('Failed to update person');
+      throw error;
     }
   }
 
@@ -60,14 +60,18 @@ export class GraphService {
       const res = await this.post('/bank_account', payload);
       return res.data;
     } catch (error) {
-      this.logger.error('Virtual account creation failed', error);
-      throw new BadRequestException('Failed to create virtual account');
+      throw error;
     }
   }
 
-  /* ===============================
-     HTTP HELPERS
-  =============================== */
+  async getVirtualAccount(accountId: string) {
+    try {
+      const res = await this.get(`/bank_account/${accountId}`);
+      return res.data;
+    } catch (error) {
+      throw error;
+    }
+  }
 
   private http() {
     return new APIRequest({ headers: this.headers });

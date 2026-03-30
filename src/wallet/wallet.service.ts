@@ -112,43 +112,11 @@ export class WalletService {
   async createVirtualUSDAccount(userId: string, personId: string) {
     return this.createVirtualAccountForCurrency(userId, personId, Currency.USD);
   }
+
   async createVirtualEURAccount(userId: string, personId: string) {
     return this.createVirtualAccountForCurrency(userId, personId, Currency.EUR);
   }
-
   //Wallet creation ends here.
-
-  async getWalletBalance(userId: string, currency: Currency) {
-    //validate currency as query param
-    if (!Object.values(Currency).includes(currency)) {
-      throw new BadRequestException('Invalid currency');
-    }
-
-    const wallet = await this.prisma.wallet.findFirst({
-      where: { userId, currency },
-    });
-
-    if (!wallet) {
-      throw new NotFoundException('Wallet not found');
-    }
-
-    const walletCredit = await this.prisma.walletTransaction.aggregate({
-      where: { walletId: wallet.id, transactionType: PaymentEntry.CREDIT },
-      _sum: { amount: true },
-    });
-
-    const walletDebit = await this.prisma.walletTransaction.aggregate({
-      where: { walletId: wallet.id, transactionType: PaymentEntry.DEBIT },
-      _sum: { amount: true },
-    });
-
-    const totalCredit = walletCredit._sum.amount || 0;
-    const totalDebit = walletDebit._sum.amount || 0;
-
-    const balance = totalCredit - totalDebit;
-
-    return { currency: wallet.currency, balance };
-  }
 
   async fundOwnWallet(userId: string, payload: FundWalletDto) {
     if (payload.amount <= 0) {
@@ -198,6 +166,38 @@ export class WalletService {
       message: 'Wallet funded successfully',
       data: result,
     };
+  }
+  //Get wallet balance for a user and currency
+  async getWalletBalance(userId: string, currency: Currency) {
+    //validate currency as query param
+    if (!Object.values(Currency).includes(currency)) {
+      throw new BadRequestException('Invalid currency');
+    }
+
+    const wallet = await this.prisma.wallet.findFirst({
+      where: { userId, currency },
+    });
+
+    if (!wallet) {
+      throw new NotFoundException('Wallet not found');
+    }
+
+    const walletCredit = await this.prisma.walletTransaction.aggregate({
+      where: { walletId: wallet.id, transactionType: PaymentEntry.CREDIT },
+      _sum: { amount: true },
+    });
+
+    const walletDebit = await this.prisma.walletTransaction.aggregate({
+      where: { walletId: wallet.id, transactionType: PaymentEntry.DEBIT },
+      _sum: { amount: true },
+    });
+
+    const totalCredit = walletCredit._sum.amount || 0;
+    const totalDebit = walletDebit._sum.amount || 0;
+
+    const balance = totalCredit - totalDebit;
+
+    return { currency: wallet.currency, balance };
   }
 
   async getBalance(walletId: string): Promise<{ data: number }> {
