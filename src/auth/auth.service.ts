@@ -63,6 +63,7 @@ export class AuthService {
       lastName: user.lastName,
       phoneNumber: user.phoneNumber,
       isEmailVerified: user.isEmailVerified,
+      expiredAt: user.expiryDate,
     };
 
     // return resizeBy

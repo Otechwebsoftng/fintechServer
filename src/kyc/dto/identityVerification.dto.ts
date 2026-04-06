@@ -17,21 +17,4 @@ export class IdentityVerificationDto {
   @IsNotEmpty()
   @IsString()
   readonly identityTypeNo: string;
-
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsString()
-  readonly issuedCountry: string;
-
-  @ApiProperty({ example: '2020-01-15' })
-  @IsNotEmpty()
-  @Type(() => Date)
-  @IsDate()
-  readonly issuedDate: Date;
-
-  @ApiProperty({ example: '2030-01-15' })
-  @IsNotEmpty()
-  @Type(() => Date)
-  @IsDate()
-  readonly expiryDate: Date;
 }
