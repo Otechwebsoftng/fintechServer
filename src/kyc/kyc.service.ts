@@ -41,26 +41,25 @@ export class KycService {
     if (!user) {
       return new NotFoundException('User not found');
     }
-
     // if kyc level is at level 0 then return level 1 of 3
     if (user.kycLevel === KycLevel.TIER_0) {
       return {
         status: 200,
         message: 'user KYC tier is tier 0 of 2',
-        data: user.kycLevel,
+        data: this.sanitizeUser(user),
       };
     }
     if (user.kycLevel === KycLevel.TIER_1) {
       return {
         status: 200,
         message: 'user KYC tier is tier 1 of 2',
-        data: user.kycLevel,
+        data: this.sanitizeUser(user),
       };
     }
     if (user.kycLevel === KycLevel.TIER_2) {
       return {
         message: 'user KYC tier is tier 2 of 2',
-        data: user.kycLevel,
+        data: this.sanitizeUser(user),
       };
     }
   }
@@ -736,5 +735,34 @@ export class KycService {
     });
 
     return person.id;
+  }
+
+  sanitizeUser(user) {
+    if (!user) return {};
+    const {
+      isEmailVerified,
+      password,
+      transactionPin,
+      isDeleted,
+      otp,
+      status,
+      isAdminPasswordChanged,
+      beneficiaries,
+      createdUsers,
+      updatedUsers,
+      graphPersonId,
+      identityTypeNo,
+      tier1idNo,
+      bvn,
+      Tier2IdNo,
+      identityTypeTier2PublicId,
+      utilityBillPublicId,
+      payments,
+      wallets,
+      BlackListedIp,
+      meterNumber,
+      ...sanitizedUser
+    } = user;
+    return sanitizedUser;
   }
 }
