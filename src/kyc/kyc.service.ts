@@ -41,27 +41,49 @@ export class KycService {
     if (!user) {
       return new NotFoundException('User not found');
     }
+    const safeTaxAddress = user.taxAddress?.isTaxAddressCompleted ?? false;
     // if kyc level is at level 0 then return level 1 of 3
     if (user.kycLevel === KycLevel.TIER_0) {
       return {
         status: 200,
         message: 'user KYC tier is tier 0 of 2',
-        data: this.sanitizeUser(user),
+        data: {
+          isBvnVerified: user.bvnVerified,
+          isTaxAddressVerified: safeTaxAddress,
+          isTier1DocumentTypeVerified: user.tier1idVerified,
+          isTier2DocumentVerification: user.identityVerificationStatus,
+          isUtilityVerified: user.isUtilityBillVerified,
+        },
       };
     }
     if (user.kycLevel === KycLevel.TIER_1) {
       return {
         status: 200,
         message: 'user KYC tier is tier 1 of 2',
-        data: this.sanitizeUser(user),
+        data: {
+          isBvnVerified: user.bvnVerified,
+          isTaxAddressVerified: user.taxAddress.isTaxAddressCompleted,
+          isTier1DocumentTypeVerified: user.tier1idVerified,
+        },
       };
     }
     if (user.kycLevel === KycLevel.TIER_2) {
       return {
         message: 'user KYC tier is tier 2 of 2',
-        data: this.sanitizeUser(user),
+        data: {
+          isBvnVerified: user.bvnVerified,
+          isTaxAddressVerified: safeTaxAddress,
+          isTier1DocumentTypeVerified: user.tier1idVerified,
+          isTier2DocumentVerification: user.identityVerificationStatus,
+          isUtilityVerified: user.isUtilityBillVerified,
+        },
       };
     }
+    return {
+      status: 400,
+      message: 'Invalid KYC tier',
+      data: null,
+    };
   }
 
   //Tier 1 verification
