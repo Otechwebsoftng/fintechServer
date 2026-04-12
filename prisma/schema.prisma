@@ -40,10 +40,10 @@ model User {
   userType                   UserType                   @default(USER)
   kycLevel                   KycLevel                   @default(TIER_0)
   bvn                        String?                    @unique
-  bvnVerified                DocumentVerificationStatus @default(NOT_VERIFIED)
+  bvnVerified                Boolean @default(false)
   tier1idType                IdentityType?              @default(NIN)
   tier1idNo                  String?                    @unique
-  tier1idVerified            DocumentVerificationStatus @default(NOT_VERIFIED)
+  tier1idVerified            Boolean @default(false)
   identityType               IdentityType?
   identityTypeNo             String?
   issuedDate                 DateTime?
@@ -54,7 +54,7 @@ model User {
   Tier2IdNo                  String?                    @unique
   identityTypeTier2Url       String?
   identityTypeTier2PublicId  String?
-  identityVerificationStatus DocumentVerificationStatus @default(NOT_VERIFIED)
+  identityVerificationStatus Boolean @default(false)
   utilityBillUrl             String?
   utilityBillPublicId        String?
   meterNumber                String?                    @db.VarChar(100)

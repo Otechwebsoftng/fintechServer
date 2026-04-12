@@ -426,18 +426,14 @@ export class UsersService {
   }
 
   async passwordOtpVerify(payload: ActivateAccountDto) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const currentTime = new Date();
+    // const currentTime = new Date();
 
     const hashOtp = await bcrypt.hash(payload.otp, PASSWORD_SALT);
-    console.log(hashOtp);
 
     const user = await this.getOne({
       otp: hashOtp,
       // otpExpiresIn: { gte: new Date(currentTime.getTime()) },
     });
-
-    console.log(user);
 
     if (!user) {
       throw new BadRequestException('Expired or incorrect OTP');

@@ -51,7 +51,6 @@ export class KycController {
   @Post('verify-bvn')
   @UseGuards(AuthGuard())
   async verifyBvn(@Body() payload: BvnDto, @CurrentUser() user: User) {
-    console.log('Starting BVN verification for user:', user.id);
     const userId = user.id;
     return this.kycService.verifyBvn(userId, payload);
   }

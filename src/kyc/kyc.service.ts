@@ -51,6 +51,7 @@ export class KycService {
           isBvnVerified: user.bvnVerified,
           isTaxAddressVerified: safeTaxAddress,
           isTier1DocumentTypeVerified: user.tier1idVerified,
+          kycLeve: user.kycLevel,
           isTier2DocumentVerification: user.identityVerificationStatus,
           isUtilityVerified: user.isUtilityBillVerified,
         },
@@ -64,6 +65,9 @@ export class KycService {
           isBvnVerified: user.bvnVerified,
           isTaxAddressVerified: user.taxAddress.isTaxAddressCompleted,
           isTier1DocumentTypeVerified: user.tier1idVerified,
+          kycLevel: user.kycLevel,
+          isTier2DocumentVerification: user.identityVerificationStatus,
+          isUtilityVerified: user.isUtilityBillVerified,
         },
       };
     }
@@ -74,6 +78,7 @@ export class KycService {
           isBvnVerified: user.bvnVerified,
           isTaxAddressVerified: safeTaxAddress,
           isTier1DocumentTypeVerified: user.tier1idVerified,
+          kycLevel: user.kycLevel,
           isTier2DocumentVerification: user.identityVerificationStatus,
           isUtilityVerified: user.isUtilityBillVerified,
         },
@@ -100,7 +105,7 @@ export class KycService {
     }
 
     // Check if BVN already verified
-    if (user.bvnVerified === DocumentVerificationStatus.PASSED) {
+    if (user.bvnVerified === true) {
       return {
         message: 'BVN already verified',
         kycLevel: user.kycLevel,
@@ -166,7 +171,7 @@ export class KycService {
           phoneNumber: randomPhone(),
           gender: Gender.NOT_SPECIFIED,
           bvn: payload.number,
-          bvnVerified: DocumentVerificationStatus.PASSED,
+          bvnVerified: true,
         },
       });
 
@@ -234,139 +239,166 @@ export class KycService {
     payload: BvnDto,
     file?: any,
   ) {
-    const idNumber = payload.number.trim();
-    const normalizedType = type.trim();
-
-    if (!file) {
-      throw new BadRequestException('Utility bill image is required');
-    }
-    const [user, duplicate] = await Promise.all([
-      this.usersService.getOne({ id: userId }),
-
-      // Prevent duplicate ID usage
-      this.usersService.getOne({
-        tier1idType: normalizedType,
-        tier1idNo: idNumber,
-      }),
-    ]);
-
-    const cleanupImage = async (publicId?: string) => {
-      if (!publicId) return;
-      try {
-        await Utility.destroy(publicId);
-      } catch (err) {
-        this.logger.error('Cloudinary cleanup failed', err);
-      }
-    };
-
-    let uploaded;
     try {
-      uploaded = await Utility.uploadImage(file, 'Person_Creation_tier1');
-    } catch {
-      await cleanupImage(uploaded?.publicId);
-      throw new BadRequestException('Failed to upload utility bill');
-    }
+      const idNumber = payload.number.trim();
+      const normalizedType = type.trim();
 
-    if (!user) throw new NotFoundException('User not found');
+      if (!file) {
+        throw new BadRequestException('Utility bill image is required');
+      }
+      const [user, duplicate] = await Promise.all([
+        this.usersService.getOne({ id: userId }),
 
-    if (duplicate && duplicate.id !== userId) {
-      throw new ConflictException({
-        success: false,
-        message: `${type} number already registered `,
-        code: 'DUPLICATE_ID',
-      });
-    }
+        // Prevent duplicate ID usage
+        this.usersService.getOne({
+          tier1idType: normalizedType,
+          tier1idNo: idNumber,
+        }),
+      ]);
 
-    // Verification strategy
-    // const verificationHandlers: Record<
-    //   IdentityType,
-    //   (id: string) => Promise<any>
-    // > = {
-    //   [IdentityType.NIN]: (id) => this.dojahVerificationService.verifyNin(id),
-
-    //   [IdentityType.DRIVER_LICENSE]: (id) =>
-    //     this.dojahVerificationService.verifyDriversLicense(id),
-
-    //   [IdentityType.PASSPORT]: (id) =>
-    //     this.dojahVerificationService.internationalPassport(id),
-    // };
-
-    // const verify = verificationHandlers[type];
-    // if (!verify) throw new BadRequestException('Unsupported identity type');
-
-    // const result = await verify(idNumber);
-
-    // if (result.status !== 'successful') {
-    //   throw new BadRequestException(
-    //     `${type} verification failed: ${result.message}`,
-    //   );
-    // }
-
-    // Update Tier 1 verification
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        tier1idType: type,
-        tier1idNo: idNumber,
-        tier1idVerified: DocumentVerificationStatus.PASSED,
-        kycLevel: KycLevel.TIER_1,
-      },
-    });
-
-    // const formatBirthDate = (dateStr: string): string => {
-    //   if (!dateStr) return null;
-    //   const normalized = dateStr.replace(/\//g, '-');
-    //   const [day, month, year] = normalized.split('-');
-    //   return `${year}-${month}-${day}`;
-    // };
-
-    const mapIdType = (type: IdentityType): string => {
-      const map = {
-        [IdentityType.NIN]: 'national_id',
-        [IdentityType.DRIVER_LICENSE]: 'drivers_license',
-        [IdentityType.PASSPORT]: 'passport',
+      const cleanupImage = async (publicId?: string) => {
+        if (!publicId) return;
+        try {
+          await Utility.destroy(publicId);
+        } catch (err) {
+          this.logger.error('Cloudinary cleanup failed', err);
+        }
       };
-      return map[type] ?? 'other';
-    };
 
-    const personPayload = {
-      name_first: user.firstName,
-      name_last: user.lastName,
-      name_other: user.otherName,
-      email: user.email,
-      phone: user.phoneNumber,
-      // dob: formatBirthDate(result.data?.date_of_birth),
-      dob: '1993-10-06T00:00:00.000Z',
-      id_level: type === IdentityType.PASSPORT ? 'primary' : 'secondary', // Passports are often considered primary IDs
-      id_type: mapIdType(type),
-      id_number: idNumber,
-      id_country: user.taxAddress?.country,
-      bank_id_number: user.bvn,
-      bank_id_type: 'bvn',
-      address: {
-        line1: `${user.taxAddress?.houseNo ?? ''} ${
-          user.taxAddress?.street ?? ''
-        }`.trim(),
-        city: user.taxAddress?.city,
-        state: user.taxAddress?.state,
-        country: user.taxAddress?.country,
-        postal_code: user.taxAddress?.zipCode,
-      },
-      documents: [{ url: uploaded.url }],
-    };
+      let uploaded;
+      try {
+        uploaded = await Utility.uploadImage(file, 'Person_Creation_tier1');
+      } catch {
+        await cleanupImage(uploaded?.publicId);
+        throw new BadRequestException('Failed to upload utility bill');
+      }
 
-    // 1️Create Person (Graph)
+      if (!user) throw new NotFoundException('User not found');
 
-    const personId = await this.ensureGraphPerson(user, personPayload);
+      if (duplicate && duplicate.id !== userId) {
+        throw new ConflictException({
+          success: false,
+          message: `${type} number already registered `,
+          code: 'DUPLICATE_ID',
+        });
+      }
 
-    // 2️ Create Wallet
-    await this.walletService.createVirtualNGNAccount(user.id, personId);
+      // Verification strategy
+      // const verificationHandlers: Record<
+      //   IdentityType,
+      //   (id: string) => Promise<any>
+      // > = {
+      //   [IdentityType.NIN]: (id) => this.dojahVerificationService.verifyNin(id),
 
-    return {
-      message:
-        'Tier 1 verification completed, NGN account created successfully',
-      kycLevel: KycLevel.TIER_1,
-    };
+      //   [IdentityType.DRIVER_LICENSE]: (id) =>
+      //     this.dojahVerificationService.verifyDriversLicense(id),
+
+      //   [IdentityType.PASSPORT]: (id) =>
+      //     this.dojahVerificationService.internationalPassport(id),
+      // };
+
+      // const verify = verificationHandlers[type];
+      // if (!verify) throw new BadRequestException('Unsupported identity type');
+
+      // const result = await verify(idNumber);
+
+      // if (result.status !== 'successful') {
+      //   throw new BadRequestException(
+      //     `${type} verification failed: ${result.message}`,
+      //   );
+      // }
+
+      // Update Tier 1 verification
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          tier1idType: type,
+          tier1idNo: idNumber,
+          tier1idVerified: true,
+          kycLevel: KycLevel.TIER_1,
+        },
+      });
+
+      // const formatBirthDate = (dateStr: string): string => {
+      //   if (!dateStr) return null;
+      //   const normalized = dateStr.replace(/\//g, '-');
+      //   const [day, month, year] = normalized.split('-');
+      //   return `${year}-${month}-${day}`;
+      // };
+
+      // remove
+      const formatDOBForGraph = (dateStr: string): string => {
+        if (!dateStr) return null;
+
+        // If ISO string with time → just split
+        if (dateStr.includes('T')) {
+          return dateStr.split('T')[0];
+        }
+
+        // If already correct
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+          return dateStr;
+        }
+
+        // Handle DD/MM/YYYY
+        if (dateStr.includes('/')) {
+          const [day, month, year] = dateStr.split('/');
+          return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+
+        return null;
+      };
+
+      const mapIdType = (type: IdentityType): string => {
+        const map = {
+          [IdentityType.NIN]: 'national_id',
+          [IdentityType.DRIVER_LICENSE]: 'drivers_license',
+          [IdentityType.PASSPORT]: 'passport',
+        };
+        return map[type] ?? 'other';
+      };
+
+      const personPayload = {
+        name_first: user.firstName,
+        name_last: user.lastName,
+        name_other: user.otherName,
+        email: user.email,
+        phone: user.phoneNumber,
+        // dob: formatBirthDate(result.data?.date_of_birth),
+        dob: formatDOBForGraph('1993-10-06T00:00:00.000Z'),
+        id_level: type === IdentityType.PASSPORT ? 'primary' : 'secondary', // Passports are often considered primary IDs
+        id_type: mapIdType(type),
+        id_number: idNumber,
+        id_country: user.taxAddress?.country,
+        bank_id_number: user.bvn,
+        bank_id_type: 'bvn',
+        address: {
+          line1: `${user.taxAddress?.houseNo ?? ''} ${
+            user.taxAddress?.street ?? ''
+          }`.trim(),
+          city: user.taxAddress?.city,
+          state: user.taxAddress?.state,
+          country: user.taxAddress?.country,
+          postal_code: user.taxAddress?.zipCode,
+        },
+        documents: [{ type: mapIdType(type), url: uploaded.url }],
+      };
+
+      // 1️Create Person (Graph)
+
+      const personId = await this.ensureGraphPerson(user, personPayload);
+
+      // 2️ Create Wallet
+      await this.walletService.createVirtualNGNAccount(user.id, personId);
+
+      return {
+        message:
+          'Tier 1 verification completed, NGN account created successfully',
+        kycLevel: KycLevel.TIER_1,
+      };
+    } catch (error) {
+      throw error;
+    }
   }
 
   // end
@@ -395,7 +427,7 @@ export class KycService {
 
     // Check if BVN verification is completed (required for ID verification)
     if (
-      user.bvnVerified !== DocumentVerificationStatus.PASSED &&
+      user.bvnVerified !== true &&
       user.taxAddress?.isTaxAddressCompleted !== true
     ) {
       throw new BadRequestException(
@@ -404,7 +436,7 @@ export class KycService {
     }
 
     // Early return if already verified
-    if (user.identityVerificationStatus === DocumentVerificationStatus.PASSED) {
+    if (user.identityVerificationStatus === true) {
       return {
         message: 'ID already verified',
         kycLevel: user.kycLevel,
@@ -448,7 +480,7 @@ export class KycService {
       const updateData: any = {
         Tier2IdType: payload.identityType,
         identityTypeNo: payload.identityTypeNo,
-        identityVerificationStatus: DocumentVerificationStatus.PASSED,
+        identityVerificationStatus: true,
         ...payload,
         identityTypeTier2Url: uploadedImage.url,
         identityTypeTier2PublicId: uploadedImage.public_id,
@@ -745,8 +777,6 @@ export class KycService {
 
   private async ensureGraphPerson(user: User, payload: any) {
     if (user.graphPersonId) return user.graphPersonId;
-
-    console.log(`existing graph person: ${user.graphPersonId}`);
 
     const person = await this.graphService.createPerson(payload);
     console.log({ graphPersonPayload: payload, graphPerson: person });

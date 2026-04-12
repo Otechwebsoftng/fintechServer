@@ -1,6 +1,5 @@
-import { IsDate, IsEnum, IsNotEmpty, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 import { IdentityType } from '@prisma/client';
 
 export class IdentityVerificationDto {
