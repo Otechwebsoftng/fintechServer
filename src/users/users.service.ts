@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
@@ -183,6 +184,17 @@ export class UsersService {
             taxCountry: true,
             taxNumber: true,
             isTaxAddressCompleted: true,
+          },
+        },
+        wallets: {
+          select: {
+            id: true,
+            virtualAccountId: true,
+            userId: true,
+            currency: true,
+            bankName: true,
+            accountNumber: true,
+            bankCode: true,
           },
         },
       },
@@ -503,6 +515,28 @@ export class UsersService {
     });
 
     return { message: 'Password reset successfully' };
+  }
+
+  async verifyTransactionPin(userId: string, transactionPin: string) {
+    const user = await this.getOne({ id: userId });
+    if (!user) {
+      throw new BadRequestException(
+        'You are not authorized to perform this action',
+      );
+    }
+
+    if (!user.transactionPin) {
+      throw new BadRequestException('Transaction PIN not set');
+    }
+
+    const isPinValid = await bcrypt.compare(
+      transactionPin,
+      user.transactionPin,
+    );
+    if (!isPinValid) {
+      throw new BadRequestException('Invalid transaction PIN');
+    }
+    return true;
   }
 
   sanitizeUser(user) {

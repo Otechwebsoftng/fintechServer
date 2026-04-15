@@ -4,12 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  DocumentVerificationStatus,
-  IdentityType,
-  KycLevel,
-  User,
-} from '@prisma/client';
+import { Currency, IdentityType, KycLevel, User } from '@prisma/client';
 import { CustomLogger } from 'src/custom.logger';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
@@ -389,7 +384,11 @@ export class KycService {
       const personId = await this.ensureGraphPerson(user, personPayload);
 
       // 2️ Create Wallet
-      await this.walletService.createVirtualNGNAccount(user.id, personId);
+      await this.walletService.createVirtualAccountForCurrency(
+        user.id,
+        personId,
+        Currency.NGN,
+      );
 
       return {
         message:
@@ -675,8 +674,16 @@ export class KycService {
 
     // 4️Create USD Wallet and EUR wallet
     const results = await Promise.allSettled([
-      this.walletService.createVirtualUSDAccount(userId, personId),
-      this.walletService.createVirtualEURAccount(userId, personId),
+      this.walletService.createVirtualAccountForCurrency(
+        userId,
+        personId,
+        Currency.USD,
+      ),
+      this.walletService.createVirtualAccountForCurrency(
+        userId,
+        personId,
+        Currency.EUR,
+      ),
     ]);
 
     const summary = {
@@ -779,7 +786,6 @@ export class KycService {
     if (user.graphPersonId) return user.graphPersonId;
 
     const person = await this.graphService.createPerson(payload);
-    console.log({ graphPersonPayload: payload, graphPerson: person });
 
     await this.prisma.user.update({
       where: { id: user.id },

@@ -11,11 +11,6 @@ import {
 } from 'class-validator';
 
 export class FundWalletDto {
-  @ApiProperty({ description: 'User Id for which the payment is for' })
-  @IsOptional()
-  @IsString()
-  readonly userId?: string;
-
   @ApiProperty({ description: 'Currency for which payment was made' })
   @IsEnum(Currency)
   readonly currency: Currency;
@@ -34,7 +29,7 @@ export class FundWalletDto {
   @IsNotEmpty()
   @IsNumber()
   @Min(0.01, { message: 'Amount must be greater than 0' })
-  @Max(10000000, { message: 'Amount exceeds maximum limit' })
+  @Max(50000000000, { message: 'Amount exceeds maximum limit' })
   readonly amount: number;
 
   @ApiProperty({
@@ -43,18 +38,4 @@ export class FundWalletDto {
   })
   @IsEnum(PaymentMethod)
   readonly paymentMethod: PaymentMethod;
-
-  @ApiProperty({
-    description:
-      'Merchant order ID associated with the payment',
-  })
-  @IsString()
-  readonly merchant_order_id: string;
-
-  @ApiProperty({
-    description:
-      'Request ID associated with the payment',
-  })
-  @IsString()
-  readonly request_id: string;
 }

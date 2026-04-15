@@ -113,8 +113,7 @@ describe('KycService', () => {
     };
 
     const mockWalletService = {
-      createVirtualNGNAccount: jest.fn(),
-      createVirtualUSDAccount: jest.fn(),
+      createVirtualAccountForCurrency: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -748,7 +747,7 @@ describe('KycService', () => {
       graphService.createUSDPerson.mockResolvedValue({
         id: 'usd-person-123',
       } as any);
-      walletService.createVirtualUSDAccount.mockResolvedValue({
+      walletService.createVirtualAccountForCurrency.mockResolvedValue({
         message: 'USD virtual account created successfully',
       } as any);
       prismaService.user.update.mockResolvedValue({
@@ -782,9 +781,10 @@ describe('KycService', () => {
           ]),
         }),
       );
-      expect(walletService.createVirtualUSDAccount).toHaveBeenCalledWith(
+      expect(walletService.createVirtualAccountForCurrency).toHaveBeenCalledWith(
         'user123',
         'usd-person-123',
+        expect.anything(),
       );
       expect(prismaService.user.update).toHaveBeenLastCalledWith(
         expect.objectContaining({

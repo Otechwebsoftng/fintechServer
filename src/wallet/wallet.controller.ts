@@ -1,22 +1,18 @@
+import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Put,
-  Query,
-  UseGuards,
-  UseInterceptors,
-} from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
-import { Currency, IdentityType, User } from '@prisma/client';
+import { Currency, User } from '@prisma/client';
 import { WalletService } from './wallet.service';
 import { FundWalletDto } from './dto/fund.dto';
 import { Throttle } from '@nestjs/throttler';
+import { PayoutDestinationDto } from './dto/payout.dto';
 
 @ApiTags('Wallet')
 @ApiBearerAuth('JWT-auth')
@@ -30,10 +26,37 @@ export class WalletController {
   })
   @Get('/user-wallets')
   @UseGuards(AuthGuard())
-  @UseInterceptors(UseInterceptors)
   async checkKycStatus(@CurrentUser() user: User) {
     const userId = user.id;
     return this.walletService.getUserWallets(userId);
+  }
+  @ApiOperation({
+    description: 'Get Account Details',
+    summary: 'Get the details of a specific account',
+  })
+  @ApiQuery({
+    name: 'currency',
+    required: true,
+    description: 'Currency of the account to fetch details for',
+  })
+  @ApiQuery({
+    name: 'accountNumber',
+    required: true,
+    description: 'Account number to fetch details for',
+  })
+  @Get('/account-details')
+  @UseGuards(AuthGuard())
+  async getAccountDetails(
+    @Query('accountNumber') accountNumber: string,
+    @Query('currency') currency: Currency,
+    @CurrentUser() user: User,
+  ) {
+    const userId = user.id;
+    return this.walletService.viewAccountDetails(
+      userId,
+      accountNumber,
+      currency,
+    );
   }
 
   @ApiOperation({
@@ -47,7 +70,6 @@ export class WalletController {
   })
   @Get('/wallet-balance')
   @UseGuards(AuthGuard())
-  @UseInterceptors(UseInterceptors)
   async getWalletBalance(
     @Query('currency') currency: Currency,
     @CurrentUser() user: User,
@@ -61,10 +83,25 @@ export class WalletController {
     summary: 'Fund the wallet of a logged in user',
   })
   @Post('/fund-wallet')
-  @Throttle({ short: { limit: 5, ttl: 60000 } }) // 5 requests per minute
-  @UseInterceptors(UseInterceptors)
+  @UseGuards(AuthGuard())
+  @Throttle({ short: { limit: 3, ttl: 60000 } }) // 3 requests per minute
   async fundWallet(@Body() payload: FundWalletDto, @CurrentUser() user: User) {
     const userId = user.id;
     return this.walletService.fundOwnWallet(userId, payload);
+  }
+
+  @ApiOperation({
+    description: 'Internal Payout',
+    summary: 'Initiate an internal payout from one wallet to another',
+  })
+  @Post('/internal-payout')
+  @UseGuards(AuthGuard())
+  @Throttle({ short: { limit: 3, ttl: 60000 } }) // 3 requests per minute
+  async internalPayout(
+    @Body() payload: PayoutDestinationDto,
+    @CurrentUser() user: User,
+  ) {
+    const userId = user.id;
+    return this.walletService.internalPayout(userId, payload);
   }
 }

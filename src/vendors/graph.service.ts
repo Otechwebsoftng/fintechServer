@@ -67,7 +67,34 @@ export class GraphService {
   async getVirtualAccount(accountId: string) {
     try {
       const res = await this.get(`/bank_account/${accountId}`);
+      return res;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async payoutDestination(payload: any) {
+    try {
+      const res = await this.post('/payout-destination', payload);
       return res.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async payout(payload: any) {
+    try {
+      const res = await this.post('/payout', payload);
+      return res.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async mockFundVirtualAccount(payload: any) {
+    try {
+      const res = await this.post('/deposit/mock', payload);
+      return res;
     } catch (error) {
       throw error;
     }
