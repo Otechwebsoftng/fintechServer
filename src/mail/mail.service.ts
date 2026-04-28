@@ -40,6 +40,25 @@ export class MailService {
     });
   }
 
+  async creditMail(email: string, firstName: string, amount: number) {
+    const subject = 'Credit Notification';
+    this.customLogger.log(`Credit notification email sent to ${email}`);
+    await this.sendDefaultMail(email, subject, 'credit', {
+      email,
+      firstName,
+      amount,
+    });
+  }
+  async debitMail(email: string, firstName: string, amount: number) {
+    const subject = 'Debit Notification';
+    this.customLogger.log(`Debit notification email sent to ${email}`);
+    await this.sendDefaultMail(email, subject, 'debit', {
+      email,
+      firstName,
+      amount,
+    });
+  }
+
   async adminWelcome(
     email: string,
     firstName: string,

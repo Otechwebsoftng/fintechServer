@@ -1,7 +1,6 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
-  ApiBody,
   ApiOperation,
   ApiQuery,
   ApiTags,
@@ -13,6 +12,7 @@ import { WalletService } from './wallet.service';
 import { FundWalletDto } from './dto/fund.dto';
 import { Throttle } from '@nestjs/throttler';
 import { PayoutDestinationDto } from './dto/payout.dto';
+import { ResolveBankDto } from './dto/resolveBankDto';
 
 @ApiTags('Wallet')
 @ApiBearerAuth('JWT-auth')
@@ -30,6 +30,7 @@ export class WalletController {
     const userId = user.id;
     return this.walletService.getUserWallets(userId);
   }
+
   @ApiOperation({
     description: 'Get Account Details',
     summary: 'Get the details of a specific account',
@@ -103,5 +104,33 @@ export class WalletController {
   ) {
     const userId = user.id;
     return this.walletService.internalPayout(userId, payload);
+  }
+
+  @ApiOperation({
+    description: 'Payout by user tags',
+    summary:
+      'Initiate an internal payout from one wallet to another via user tag',
+  })
+  @Post('/fund-user-tag')
+  @UseGuards(AuthGuard())
+  @Throttle({ short: { limit: 3, ttl: 60000 } }) // 3 requests per minute
+  async internalPayoutByTag(
+    @Body() payload: PayoutDestinationDto,
+    @CurrentUser() user: User,
+  ) {
+    const userId = user.id;
+    const tag = payload.tag;
+    return this.walletService.internalPayoutByTag(userId, tag, payload);
+  }
+
+  @ApiOperation({
+    description: 'Resolve Bank Details',
+    summary: 'Resolve bank details for a given account number',
+  })
+  @Post('/resolve-bank-details')
+  @UseGuards(AuthGuard())
+  @Throttle({ short: { limit: 3, ttl: 60000 } }) // 3 requests per minute
+  async ResolveBankDetails(@Body() payload: ResolveBankDto) {
+    return this.walletService.resolveBank(payload);
   }
 }

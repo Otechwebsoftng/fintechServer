@@ -652,6 +652,8 @@ export class KycService {
 
     const personId = await this.ensureGraphPerson(user, personPayload);
 
+    console.log(personId);
+
     // If person already existed, upgrade KYC
     if (user.graphPersonId) {
       await this.graphService.updatePerson(personId, {

@@ -41,18 +41,33 @@ export class Utility {
     return strings.toLowerCase().split(' ').join('_');
   };
   static koboToNaira = (value) => {
-    let convertedResult: number = value / 100;
+    const convertedResult: number = value / 100;
     return convertedResult.toFixed(2);
   };
 
   static nairaToKobo = (value: number) => {
-    let convertedResult: number = value * 100;
+    const convertedResult: number = value * 100;
+
+    return Math.round((convertedResult + Number.EPSILON) * 100) / 100;
+  };
+  static CurrencyBroken = (value: number) => {
+    const convertedResult: number = value * 100;
 
     return Math.round((convertedResult + Number.EPSILON) * 100) / 100;
   };
 
+  static dollarToCent = (value: number) => {
+    const convertedResult: number = value * 100;
+
+    return Math.round((convertedResult + Number.EPSILON) * 100) / 100;
+  };
+
+  static centToDollar = (value) => {
+    const convertedResult: number = value / 100;
+    return convertedResult.toFixed(2);
+  };
   static ucwords = (value: string) => {
-    var str = value;
+    let str = value;
     str = str.toLowerCase().replace(/\b[a-z]/g, function (letter) {
       return letter.toUpperCase();
     });
@@ -83,7 +98,7 @@ export class Utility {
       lowercaseChars + uppercaseChars + numberChars + specialChars;
 
     // Use an array to build the password
-    let passwordArray = [];
+    const passwordArray = [];
 
     // Ensure at least one of each required character type is present
     passwordArray.push(

@@ -5,7 +5,6 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
@@ -161,44 +160,46 @@ export class UsersService {
   }
 
   async getOne(criteria: any) {
-    return await this.prisma.user.findFirst({
-      where: { ...criteria },
-      include: {
-        role: {
-          select: {
-            id: true,
-            name: true,
-            permissions: true,
+    return this.sanitizeUser(
+      await this.prisma.user.findFirst({
+        where: { ...criteria },
+        include: {
+          role: {
+            select: {
+              id: true,
+              name: true,
+              permissions: true,
+            },
+          },
+          taxAddress: {
+            select: {
+              id: true,
+              country: true,
+              state: true,
+              city: true,
+              street: true,
+              houseNo: true,
+              zipCode: true,
+              nationality: true,
+              taxCountry: true,
+              taxNumber: true,
+              isTaxAddressCompleted: true,
+            },
+          },
+          wallets: {
+            select: {
+              id: true,
+              virtualAccountId: true,
+              userId: true,
+              currency: true,
+              bankName: true,
+              accountNumber: true,
+              bankCode: true,
+            },
           },
         },
-        taxAddress: {
-          select: {
-            id: true,
-            country: true,
-            state: true,
-            city: true,
-            street: true,
-            houseNo: true,
-            zipCode: true,
-            nationality: true,
-            taxCountry: true,
-            taxNumber: true,
-            isTaxAddressCompleted: true,
-          },
-        },
-        wallets: {
-          select: {
-            id: true,
-            virtualAccountId: true,
-            userId: true,
-            currency: true,
-            bankName: true,
-            accountNumber: true,
-            bankCode: true,
-          },
-        },
-      },
-    });
+      }),
+    );
   }
 
   async viewOne(userId: string) {
@@ -281,17 +282,23 @@ export class UsersService {
   async createUserTag(userId: string, payload: UserTagDto) {
     const sanitizedTag = '@' + payload.userTag.toLowerCase().trim();
 
-    const updateUserTag = await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        userTag: sanitizedTag,
-      },
-    });
+    try {
+      const updateUserTag = await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          userTag: sanitizedTag,
+        },
+      });
 
-    return {
-      message: 'User tag created successfully',
-      data: updateUserTag.userTag,
-    };
+      return {
+        message: 'User tag created successfully',
+        data: updateUserTag.userTag,
+      };
+    } catch (error) {
+      if (error.code === 'P2002' && error.meta?.target?.includes('userTag')) {
+        throw new ConflictException('User tag already in use');
+      }
+    }
   }
 
   async setTransactionPin(user: User, payload: TransactionPinDto) {
@@ -518,7 +525,9 @@ export class UsersService {
   }
 
   async verifyTransactionPin(userId: string, transactionPin: string) {
-    const user = await this.getOne({ id: userId });
+    const user = await this.sanitizeUser(
+      this.prisma.user.findUnique({ where: { id: userId } }),
+    );
     if (!user) {
       throw new BadRequestException(
         'You are not authorized to perform this action',

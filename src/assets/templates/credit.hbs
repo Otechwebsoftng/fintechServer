@@ -1,0 +1,44 @@
+<html lang='en'>
+    <head>
+        <meta charset='UTF-8' />
+        <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+        <title>Email</title>
+        <!-- Dynamic title for each email -->
+    </head>
+    <body
+        style='font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;'>
+        <div
+            class='container'
+            style='width: 100%; max-width: 600px; margin: 50px auto; border-radius: 8px;'>
+            <div class='header'
+                style='text-align: center; padding-bottom: 20px;'>
+                {{!-- <img
+                    src='https://res.cloudinary.com/dv5xdn0aa/image/upload/v1748363616/WhatsApp_Image_2025-05-27_at_5.32.23_PM_qwtqcd.jpg'
+                    alt='Logo'
+                    title='Logo'
+                    style='width: 50px; height:auto' /> --}}
+            </div>
+            <div
+                class='content'
+                style='border-top: 4px solid #1F2537; padding: 20px 0; margin-top: 20px; padding: 20px; background-color: #ffffff; border-radius: 30px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);'>
+
+                {{! main }}
+                <h1>Hi, {{firstName}}!</h1>
+                <p>Your account has been credited with {{amount}}.
+                    🤩.</p>
+                    <h3>{{token}}</h3>
+                <p>If this isn't you, please ignore this email.</p>
+
+                {{! main }}
+
+            </div>
+            <div
+                class='footer'
+                style='text-align: center; padding-top: 20px; font-size: 14px; color: #999999;'>
+                <p>&copy; {{year}} White label. All rights reserved.</p>
+                <p>Visit our website
+                    <a href='https://whitelabel.com/'>www.whitelabel.com</a></p>
+            </div>
+        </div>
+    </body>
+</html>

@@ -61,6 +61,7 @@ export class AuthService {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
+      tag: user.userTag || null,
       phoneNumber: user.phoneNumber,
       isEmailVerified: user.isEmailVerified,
       expiredAt: user.expiryDate,

@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APIRequest } from 'src/helpers/http.service';
 
@@ -95,6 +95,33 @@ export class GraphService {
     try {
       const res = await this.post('/deposit/mock', payload);
       return res;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async fetchRates() {
+    try {
+      const res = await this.get('/rate');
+      return res;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async listBank() {
+    try {
+      const res = await this.get('/bank');
+      return res.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async resolveBank(payload: any) {
+    try {
+      const res = await this.post('/bank/resolve/account', payload);
+      return res.data;
     } catch (error) {
       throw error;
     }

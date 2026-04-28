@@ -1,175 +1,258 @@
-// import {
-//     BadRequestException,
-//     Injectable,
-//     NotFoundException,
-// } from '@nestjs/common';
-// import { PrismaService } from '../prisma/prisma.service';
-// import { Logger } from '@nestjs/common';
-// import { MailService } from 'src/mail/mail.service';
-// import { PaymentUtility } from 'src/vendors/paystack.service';
-// import { Currency, PaymentStatus } from '@prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { Logger } from '@nestjs/common';
+import { MailService } from 'src/mail/mail.service';
+import { Currency, PaymentEntry, PaymentStatus } from '@prisma/client';
+import { WalletService } from 'src/wallet/wallet.service';
+import { SignatureService } from './signature.service';
+import { UsersService } from 'src/users/users.service';
+import { Utility } from 'src/helpers/utilities.service';
 
-// @Injectable()
-// export class WebhookService {
-//     private readonly logger = new Logger(WebhookService.name);
+@Injectable()
+export class WebhookService {
+  private readonly logger = new Logger(WebhookService.name);
 
-//     constructor(
-//         private readonly paymentUtility: PaymentUtility,
-//         private readonly prisma: PrismaService,
-//         private readonly mailService: MailService
-//     ) {}
+  constructor(
+    private readonly walletService: WalletService,
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+    private signatureService: SignatureService,
+    private readonly usersService: UsersService,
+  ) {}
 
-//     async fincraWebhook(payload: any, signature: string) {
-//         this.validateSignature(payload, signature);
+  async graphTransactionWebhook(payload: any, signature: string) {
+    this.validateSignature(payload, signature);
 
-//         // Save the webhook payload to the database
-//         await this.prisma.webhook.create({
-//             data: {
-//                 domain: payload.data?.domain,
-//                 status: payload.data?.status,
-//                 reference: payload.data?.reference,
-//                 amount: payload.data?.amount,
-//                 message: payload.data?.message,
-//                 gateway_response: payload.data?.gateway_response,
-//                 paid_at: payload.data?.paid_at
-//                     ? new Date(payload.data.paid_at)
-//                     : undefined,
-//                 failed_at: payload.data?.failed_at
-//                     ? new Date(payload.data.failed_at)
-//                     : undefined,
-//                 channel: payload.data?.channel,
-//                 currency: payload.data?.currency,
-//                 ip_address: payload.data?.ip_address,
-//                 metadata: payload.data?.metadata,
-//                 log: payload.data?.log,
-//                 fees: payload.data?.fees,
-//                 customer: payload.data?.customer,
-//                 authorization: payload.data?.authorization,
-//             },
-//         });
+    // Save the webhook payload to the database
+    await this.prisma.webhook.create({
+      data: {
+        accountId: payload.data?.account_id,
+        depositId: payload.data?.deposit.id,
+        status: payload.data?.status,
+        amount: Utility.CurrencyBroken(payload.data.data?.amount),
+        fee: Utility.CurrencyBroken(payload.data?.deposit.fee),
+        amountSettled: Utility.CurrencyBroken(
+          payload.data?.deposit.amount_settled,
+        ),
+        currency: payload.data?.deposit.currency,
+        kind: payload.data?.kind,
+        type: payload.data?.type,
+        paid_at: payload.data?.paid_at
+          ? new Date(payload.data.paid_at)
+          : undefined,
+      },
+    });
 
-//         switch (payload.event) {
-//             case 'charge.success':
-//                 return this.handleSuccessfulCharge(payload.data);
+    switch (payload.event) {
+      case 'payout.success':
+        return this.handleSuccessfulPayout(payload.data);
 
-//             case 'charge.failed':
-//                 return this.handleFailedCharge(payload.data);
-//             case 'transfer.success':
-//                 return this.handleSuccessfulTransfer(payload.data);
-//             default:
-//                 this.logger.log(`Unhandled event type: ${payload.event}`);
-//         }
-//     }
+      case 'account.credit':
+        return this.handleSuccessfulDeposit(payload.data);
 
-//     private validateSignature(payload: any, signature: string) {
-//         if (!this.paymentUtility.verifyWebhook(payload, signature)) {
-//             this.logger.warn('Invalid webhook signature');
-//             throw new BadRequestException('Invalid signature');
-//         }
-//     }
+      case 'payout.failed':
+        return this.handleFailedPayout(payload.data);
+      default:
+        this.logger.log(`Unhandled event type: ${payload.event}`);
+    }
+  }
 
-//     private async handleSuccessfulCharge(data: any) {
-//         return this.prisma.$transaction(async tx => {
-//             // 1) check if the reference exist
-//             const payment = await this.verifyPaymentRecord(data.reference, tx);
+  private validateSignature(payload: any, signature: string) {
+    if (!this.signatureService.verifySignature(payload, signature)) {
+      this.logger.warn('Invalid webhook signature');
+      throw new BadRequestException('Invalid signature');
+    }
+  }
 
-//             // 2) Update the payment status to success
-//             await this.updatePaymentStatus(
-//                 payment.reference,
-//                 PaymentStatus.SUCCESS,
-//                 { paid_at: new Date() },
-//                 tx
-//             );
+  private async handleSuccessfulPayout(data: any) {
+    const payoutId = data.payout_id;
+    return this.prisma.$transaction(async (tx) => {
+      const pendingTx = await tx.walletTransaction.findFirst({
+        where: { payoutId: payoutId },
+        include: { wallet: { include: { user: true } } },
+      });
 
-//             // 3) update order isPaid Status
-//             const updateOrder = await tx.order.update({
-//                 where: { id: payment.orderId },
-//                 data: {
-//                     isPaid: true,
-//                 },
-//             });
+      if (!pendingTx) {
+        throw new NotFoundException('Transaction record not found');
+      }
 
-//             // 4) Prepare receipt details
-//             const receiptDetails = {
-//                 firstName: payment.user?.firstName || 'Customer',
-//                 lastName: payment.user?.lastName || '',
-//                 email: payment.user?.email || '',
-//                 amount: payment.amount,
-//                 orderNumber: updateOrder.orderNumber,
-//                 paymentMethod: data.authorization?.channel || 'card',
-//                 Currency: data.authorization?.currency || Currency.NGN,
-//                 transactionDate: new Date().toISOString(),
-//                 reference: payment.reference,
-//             };
+      if (pendingTx.status === PaymentStatus.SUCCESS) {
+        return {
+          processed: false,
+          message: 'Already processed',
+        };
+      }
 
-//             // 5) Send email receipt
-//             await this.mailService.paymentReceipt(
-//                 receiptDetails.email,
-//                 receiptDetails.firstName,
-//                 receiptDetails.lastName,
-//                 receiptDetails.amount,
-//                 receiptDetails.Currency,
-//                 receiptDetails.orderNumber
-//             );
+      if (pendingTx.linkedTxId) {
+        await tx.walletTransaction.update({
+          where: {
+            id: pendingTx.linkedTxId,
+          },
+          data: { status: PaymentStatus.SUCCESS },
+        });
+      }
 
-//             // 6) Process specific payment types
+      await this.mailService.debitMail(
+        pendingTx.wallet.user.email,
+        pendingTx.wallet.user.firstName,
+        data.amount,
+      );
 
-//             return { processed: true };
-//         });
-//     }
+      return { processed: true };
+    });
+  }
+  private async handleFailedPayout(data: any) {
+    const payoutId = data.payout_id;
+    const isSuccessful = data.status === 'successful'; // Logic based on provider's payload
+    const finalStatus = isSuccessful
+      ? PaymentStatus.SUCCESS
+      : PaymentStatus.FAILED;
+    return this.prisma.$transaction(async (tx) => {
+      const senderTx = await tx.walletTransaction.findFirst({
+        where: { payoutId: payoutId },
+        include: { wallet: { include: { user: true } } },
+      });
 
-//     private async handleSuccessfulTransfer(data: any) {
-//         return this.prisma.$transaction(async tx => {
-//             const payment = await this.verifyPaymentRecord(data.reference, tx);
-//             await this.updatePaymentStatus(
-//                 payment.reference,
-//                 PaymentStatus.SUCCESS,
-//                 { paid_at: new Date() },
-//                 tx
-//             );
-//             this.logger.log(
-//                 `Transfer successful for payment ${data.reference}`
-//             );
-//         });
-//     }
+      if (!senderTx)
+        throw new NotFoundException('Transaction record not found');
+      if (senderTx.status === PaymentStatus.SUCCESS)
+        return { processed: false };
 
-//     private async verifyPaymentRecord(reference: string, tx: any) {
-//         const payment = await this.prisma.payments.findUnique({
-//             where: { reference },
-//             include: { user: true },
-//         });
-//         if (!payment) throw new NotFoundException('Payment not found');
-//         if (payment.status === PaymentStatus.SUCCESS) {
-//             this.logger.log(`Payment ${reference} already processed`);
-//             throw new Error('Payment already processed');
-//         }
-//         return payment;
-//     }
+      await tx.walletTransaction.update({
+        where: { id: senderTx.id },
+        data: { status: finalStatus },
+      });
 
-//     private async updatePaymentStatus(
-//         reference: string,
-//         status: PaymentStatus,
-//         additionalData: object,
-//         tx: any
-//     ) {
-//         return tx.payments.update({
-//             where: { reference },
-//             data: {
-//                 status,
-//                 ...additionalData,
-//             },
-//         });
-//     }
+      if (senderTx.paymentId) {
+        await tx.payment.update({
+          where: { id: senderTx.paymentId },
+          data: { status: finalStatus },
+        });
+      }
 
-//     private async handleFailedCharge(data: any) {
-//         return this.prisma.payments.update({
-//             where: { reference: data.reference },
-//             data: {
-//                 status: PaymentStatus.FAILED,
-//                 failed_at: new Date(),
-//                 failure_reason: data.gateway_response,
-//                 failure_code: data.errors?.code,
-//             },
-//         });
-//     }
-// }
+      if (senderTx.linkedTxId) {
+        const receiverTx = await tx.walletTransaction.update({
+          where: { id: senderTx.linkedTxId },
+          data: { status: finalStatus },
+        });
+
+        if (receiverTx.paymentId) {
+          await tx.payment.update({
+            where: { id: receiverTx.paymentId },
+            data: { status: finalStatus },
+          });
+        }
+      }
+      if (isSuccessful) {
+        await this.mailService.debitMail(
+          senderTx.wallet.user.email,
+          senderTx.wallet.user.firstName,
+          data.amount,
+        );
+      } else {
+        // Logic for notifying user of failure or triggering reversal alert
+      }
+
+      return { processed: true };
+    });
+  }
+
+  private async handleSuccessfulDeposit(data: any) {
+    const depositId = data.deposit.id;
+    const accountId = data.account_id;
+    const reference = `transfer_${depositId}`;
+    const finalStatus =
+      data.status === 'successful'
+        ? PaymentStatus.SUCCESS
+        : PaymentStatus.FAILED;
+
+    const existingPayment = await this.prisma.payment.findUnique({
+      where: { transactionId: depositId },
+    });
+
+    if (existingPayment) {
+      this.logger.warn(`Deposit ${depositId} already processed. Skipping.`);
+      return { processed: false, message: 'Duplicate' };
+    }
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        // get UserId from accountId
+        const wallet = await tx.wallet.findUnique({
+          where: { virtualAccountId: accountId },
+          include: { user: true },
+        });
+
+        console.log('Wallet found for account ID:', wallet);
+
+        if (!wallet) {
+          throw new NotFoundException('Wallet not found');
+        }
+
+        const payment = await tx.payment.create({
+          data: {
+            userId: wallet.userId,
+            virtualAccountId: data.account_id,
+            transactionId: data.deposit.id,
+            amount: Utility.CurrencyBroken(data.deposit.amount),
+            reference: reference,
+            status:
+              data.status === 'successful'
+                ? PaymentStatus.SUCCESS
+                : PaymentStatus.FAILED,
+            currency: this.mapCurrency(data.deposit.currency),
+            amountSettled: data.deposit.amount_settled,
+            fee: Utility.CurrencyBroken(data.deposit.fee),
+            type: data.type,
+            paymentEntry: PaymentEntry.CREDIT,
+            description: data.description,
+          },
+        });
+
+        //4. create wallet transaction
+        await tx.walletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            transactionId: data.deposit.id,
+            amount: Utility.CurrencyBroken(data.deposit.amount_settled),
+            reference: reference,
+            currency: payment.currency,
+            transactionType: PaymentEntry.CREDIT,
+            paymentId: payment.id,
+            status: payment.status,
+            description: payment.description,
+          },
+        });
+
+        return {
+          email: wallet.user.email,
+          firstName: wallet.user.firstName,
+          amount: data.deposit.amount,
+          status: finalStatus,
+        };
+      });
+      if (result && result.status === PaymentStatus.SUCCESS) {
+        await this.mailService.creditMail(
+          result.email,
+          result.firstName,
+          result.amount,
+        );
+      }
+
+      return { success: true };
+    } catch (error) {
+      this.logger.error(`Failed to process deposit ${depositId}`, error.stack);
+      throw error;
+    }
+  }
+
+  private mapCurrency(currency: string): Currency {
+    const c = currency?.toUpperCase();
+    return (Object.values(Currency) as string[]).includes(c)
+      ? (c as Currency)
+      : Currency.NGN;
+  }
+}

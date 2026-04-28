@@ -7,19 +7,30 @@ import {
   IsString,
   IsNumber,
   Min,
-  Max,
 } from 'class-validator';
 
 export class PayoutDestinationDto {
-  @ApiProperty({ description: 'destination account number' })
-  @IsNotEmpty()
+  @ApiProperty({ description: 'Used only for tag transfer' })
+  @IsOptional()
+  @IsString()
+  readonly tag: string;
+
+  @ApiProperty({
+    description: 'destination account number. Not required for tags',
+  })
+  @IsOptional()
   @IsString()
   readonly accountNumber: string;
 
-  @ApiProperty({ description: 'Default selected currency' })
+  @ApiProperty({ description: 'Currency to transfer from' })
+  @IsOptional()
+  @IsEnum(Currency)
+  readonly currencyFrom: Currency;
+
+  @ApiProperty({ description: 'Currency to transfer to' })
   @IsNotEmpty()
   @IsEnum(Currency)
-  readonly currency: Currency;
+  readonly currencyTo: Currency;
 
   @ApiProperty({ description: 'payout amount' })
   @IsNotEmpty()
