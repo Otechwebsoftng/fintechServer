@@ -7,9 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Logger } from '@nestjs/common';
 import { MailService } from 'src/mail/mail.service';
 import { Currency, PaymentEntry, PaymentStatus } from '@prisma/client';
-import { WalletService } from 'src/wallet/wallet.service';
 import { SignatureService } from './signature.service';
-import { UsersService } from 'src/users/users.service';
 import { Utility } from 'src/helpers/utilities.service';
 
 @Injectable()
@@ -17,11 +15,9 @@ export class WebhookService {
   private readonly logger = new Logger(WebhookService.name);
 
   constructor(
-    private readonly walletService: WalletService,
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
     private signatureService: SignatureService,
-    private readonly usersService: UsersService,
   ) {}
 
   async graphTransactionWebhook(payload: any, signature: string) {
