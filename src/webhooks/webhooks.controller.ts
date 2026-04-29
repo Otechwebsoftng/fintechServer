@@ -6,10 +6,10 @@ import {
   HttpStatus,
   Post,
 } from '@nestjs/common';
-import { ApiOperation } from '@nestjs/swagger';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CustomLogger } from 'src/custom.logger';
 import { WebhookService } from './webhooks.service';
-
+@ApiTags('Webhooks')
 @Controller('webhooks')
 export class WebhooksController {
   constructor(
