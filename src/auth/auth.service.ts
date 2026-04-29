@@ -30,16 +30,16 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
-  async login(loginDto: LoginDto) {
+  async login(payload: LoginDto) {
     const user = await this.usersService.getOne({
-      email: loginDto.email,
+      email: payload.email,
       userType: UserType.USER,
     });
 
     if (!user) throw new UnauthorizedException('Invalid email or password');
 
     const isPasswordMatch = await bcrypt.compare(
-      loginDto.password,
+      payload.password,
       user.password,
     );
 
@@ -47,27 +47,15 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    // if (user.status === AccountStatus.INACTIVE) {
-    //   throw new BadRequestException(
-    //     'User account is inactive. Contact support.',
-    //   );
-    // }
-
-    // const token = await APIFeatures.assignJwtToken(user, this.jwtService);
-    // const { password: _, transactionPin: __, ...userWithoutPassword } = user;
-
     const result = {
       id: user.id,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      tag: user.userTag || null,
       phoneNumber: user.phoneNumber,
       isEmailVerified: user.isEmailVerified,
       expiredAt: user.expiryDate,
     };
-
-    // return resizeBy
 
     return await this.getUserAuthData(result);
   }

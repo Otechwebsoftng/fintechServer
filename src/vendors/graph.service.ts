@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APIRequest } from 'src/helpers/http.service';
 
@@ -114,7 +114,8 @@ export class GraphService {
       const res = await this.get('/bank');
       return res.data;
     } catch (error) {
-      throw error;
+      this.logger.error('Could not retrieve lists', error);
+      throw new BadRequestException('Could not retrieve lists');
     }
   }
 
@@ -123,7 +124,8 @@ export class GraphService {
       const res = await this.post('/bank/resolve/account', payload);
       return res.data;
     } catch (error) {
-      throw error;
+      this.logger.error('Bank resolution failed', error);
+      throw new BadRequestException('Could not verify bank account details');
     }
   }
 

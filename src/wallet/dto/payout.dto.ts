@@ -22,6 +22,20 @@ export class PayoutDestinationDto {
   @IsString()
   readonly accountNumber: string;
 
+  @ApiProperty({
+    description: 'Bank Code For nip transfer',
+  })
+  @IsOptional()
+  @IsString()
+  readonly bankCode: string;
+
+  @ApiProperty({
+    description: 'Beneficiary name For nip transfer',
+  })
+  @IsOptional()
+  @IsString()
+  beneficiaryName: string;
+
   @ApiProperty({ description: 'Currency to transfer from' })
   @IsOptional()
   @IsEnum(Currency)

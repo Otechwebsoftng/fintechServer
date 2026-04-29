@@ -93,17 +93,34 @@ export class WalletController {
 
   @ApiOperation({
     description: 'Internal Payout',
-    summary: 'Initiate an internal payout from one wallet to another',
+    summary:
+      'Initiate an internal payout from one wallet to another regardless of the currency',
   })
   @Post('/internal-payout')
   @UseGuards(AuthGuard())
-  @Throttle({ short: { limit: 3, ttl: 60000 } }) // 3 requests per minute
+  @Throttle({ short: { limit: 3, ttl: 60000 } })
   async internalPayout(
     @Body() payload: PayoutDestinationDto,
     @CurrentUser() user: User,
   ) {
     const userId = user.id;
-    return this.walletService.internalPayout(userId, payload);
+    return this.walletService.interBankPayout(userId, payload);
+  }
+
+  @ApiOperation({
+    description: 'External Payout',
+    summary:
+      'Initiate an external payout from graph wallet to external NGN banks eg Zenith, Access',
+  })
+  @Post('/external-payout')
+  @UseGuards(AuthGuard())
+  @Throttle({ short: { limit: 3, ttl: 60000 } })
+  async externalPayout(
+    @Body() payload: PayoutDestinationDto,
+    @CurrentUser() user: User,
+  ) {
+    const userId = user.id;
+    return this.walletService.interBankPayout(userId, payload);
   }
 
   @ApiOperation({

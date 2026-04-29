@@ -70,38 +70,47 @@ export class WebhookService {
 
   private async handleSuccessfulPayout(data: any) {
     const payoutId = data.payout_id;
+
     return this.prisma.$transaction(async (tx) => {
-      const pendingTx = await tx.walletTransaction.findFirst({
-        where: { payoutId: payoutId },
+      // 1. Find Sender
+      const sTx = await tx.walletTransaction.findFirst({
+        where: { payoutId },
         include: { wallet: { include: { user: true } } },
       });
 
-      if (!pendingTx) {
-        throw new NotFoundException('Transaction record not found');
-      }
+      if (!sTx || sTx.status === PaymentStatus.SUCCESS)
+        return { processed: false };
 
-      if (pendingTx.status === PaymentStatus.SUCCESS) {
-        return {
-          processed: false,
-          message: 'Already processed',
-        };
-      }
+      // 2. Update Sender Status
+      await tx.walletTransaction.update({
+        where: { id: sTx.id },
+        data: { status: PaymentStatus.SUCCESS },
+      });
+      await tx.payment.update({
+        where: { id: sTx.paymentId },
+        data: { status: PaymentStatus.SUCCESS },
+      });
 
-      if (pendingTx.linkedTxId) {
+      // 3. Find and Update Receiver (Only for internal transfers)
+      const rTx = await tx.walletTransaction.findFirst({
+        where: { linkedTxId: sTx.id },
+      });
+      if (rTx) {
         await tx.walletTransaction.update({
-          where: {
-            id: pendingTx.linkedTxId,
-          },
+          where: { id: rTx.id },
+          data: { status: PaymentStatus.SUCCESS },
+        });
+        await tx.payment.update({
+          where: { id: rTx.paymentId },
           data: { status: PaymentStatus.SUCCESS },
         });
       }
 
       await this.mailService.debitMail(
-        pendingTx.wallet.user.email,
-        pendingTx.wallet.user.firstName,
+        sTx.wallet.user.email,
+        sTx.wallet.user.firstName,
         data.amount,
       );
-
       return { processed: true };
     });
   }

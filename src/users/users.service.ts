@@ -160,46 +160,44 @@ export class UsersService {
   }
 
   async getOne(criteria: any) {
-    return this.sanitizeUser(
-      await this.prisma.user.findFirst({
-        where: { ...criteria },
-        include: {
-          role: {
-            select: {
-              id: true,
-              name: true,
-              permissions: true,
-            },
-          },
-          taxAddress: {
-            select: {
-              id: true,
-              country: true,
-              state: true,
-              city: true,
-              street: true,
-              houseNo: true,
-              zipCode: true,
-              nationality: true,
-              taxCountry: true,
-              taxNumber: true,
-              isTaxAddressCompleted: true,
-            },
-          },
-          wallets: {
-            select: {
-              id: true,
-              virtualAccountId: true,
-              userId: true,
-              currency: true,
-              bankName: true,
-              accountNumber: true,
-              bankCode: true,
-            },
+    return await this.prisma.user.findFirst({
+      where: { ...criteria },
+      include: {
+        role: {
+          select: {
+            id: true,
+            name: true,
+            permissions: true,
           },
         },
-      }),
-    );
+        taxAddress: {
+          select: {
+            id: true,
+            country: true,
+            state: true,
+            city: true,
+            street: true,
+            houseNo: true,
+            zipCode: true,
+            nationality: true,
+            taxCountry: true,
+            taxNumber: true,
+            isTaxAddressCompleted: true,
+          },
+        },
+        wallets: {
+          select: {
+            id: true,
+            virtualAccountId: true,
+            userId: true,
+            currency: true,
+            bankName: true,
+            accountNumber: true,
+            bankCode: true,
+          },
+        },
+      },
+    });
   }
 
   async viewOne(userId: string) {
