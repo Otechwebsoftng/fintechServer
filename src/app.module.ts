@@ -13,7 +13,7 @@ import { AdminModule } from './admin/admin.module';
 import { KycModule } from './kyc/kyc.module';
 import { WalletModule } from './wallet/wallet.module';
 import { BeneficiaryModule } from './beneficiary/beneficiary.module';
-// import { WebhooksModule } from './webhooks/webhooks.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -35,7 +35,7 @@ import { AppService } from './app.service';
     WalletModule,
     // VirtualCardsModule,
     BeneficiaryModule,
-    // WebhooksModule,
+    WebhooksModule,
   ],
   controllers: [AppController],
   providers: [
