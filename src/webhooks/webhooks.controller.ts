@@ -21,7 +21,7 @@ export class WebhooksController {
     summary: 'Get the wallets of a currently logged in user ',
   })
   @HttpCode(HttpStatus.OK)
-  @Post('/webhooks')
+  @Post('/')
   async checkKycStatus(
     @Body() payload: any,
     @Headers('verif-hash') signature: string,
