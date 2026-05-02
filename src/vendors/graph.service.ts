@@ -24,23 +24,13 @@ export class GraphService {
   =============================== */
 
   async createPerson(payload: any) {
-    try {
-      const res = await this.post('/person', payload);
-      return res.data;
-    } catch (error) {
-      this.logger.error('Create person failed', error);
-      throw error;
-    }
+    const res = await this.post('/person', payload);
+    return res.data;
   }
 
   async updatePerson(personId: string, payload: any) {
-    try {
-      const res = await this.patch(`/person/${personId}`, payload);
-      return res.data;
-    } catch (error) {
-      this.logger.error('Update person failed', error);
-      throw error;
-    }
+    const res = await this.patch(`/person/${personId}`, payload);
+    return res.data;
   }
 
   /* ===============================
@@ -48,75 +38,46 @@ export class GraphService {
   =============================== */
 
   async createVirtualAccount(personId: string, currency: string) {
-    try {
-      const payload = {
-        person_id: personId,
-        label: 'Individual Virtual Account',
-        currency,
-      };
+    const payload = {
+      person_id: personId,
+      label: 'Individual Virtual Account',
+      currency,
+    };
 
-      this.logger.log(`Creating ${currency} virtual account`);
+    this.logger.log(`Creating ${currency} virtual account`);
 
-      const res = await this.post('/bank_account', payload);
-      return res.data;
-    } catch (error) {
-      throw error;
-    }
+    const res = await this.post('/bank_account', payload);
+    return res.data;
   }
 
   async getVirtualAccount(accountId: string) {
-    try {
-      const res = await this.get(`/bank_account/${accountId}`);
-      return res;
-    } catch (error) {
-      throw error;
-    }
+    const res = await this.get(`/bank_account/${accountId}`);
+    return res;
   }
 
   async payoutDestination(payload: any) {
-    try {
-      const res = await this.post('/payout-destination', payload);
-      return res.data;
-    } catch (error) {
-      throw error;
-    }
+    const res = await this.post('/payout-destination', payload);
+    return res.data;
   }
 
   async payout(payload: any) {
-    try {
-      const res = await this.post('/payout', payload);
-      return res.data;
-    } catch (error) {
-      throw error;
-    }
+    const res = await this.post('/payout', payload);
+    return res.data;
   }
 
   async mockFundVirtualAccount(payload: any) {
-    try {
-      const res = await this.post('/deposit/mock', payload);
-      return res;
-    } catch (error) {
-      throw error;
-    }
+    const res = await this.post('/deposit/mock', payload);
+    return res;
   }
 
   async fetchRates() {
-    try {
-      const res = await this.get('/rate');
-      return res;
-    } catch (error) {
-      throw error;
-    }
+    const res = await this.get('/rate');
+    return res;
   }
 
   async listBank() {
-    try {
-      const res = await this.get('/bank');
-      return res.data;
-    } catch (error) {
-      this.logger.error('Could not retrieve lists', error);
-      throw new BadRequestException('Could not retrieve lists');
-    }
+    const res = await this.get('/bank');
+    return res.data;
   }
 
   async resolveBank(payload: any) {
@@ -130,7 +91,7 @@ export class GraphService {
   }
 
   private http() {
-    return new APIRequest({ headers: this.headers });
+    return new APIRequest({ headers: this.headers, timeout: 30000 });
   }
 
   private async get(path: string) {

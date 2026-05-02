@@ -16,6 +16,7 @@ import { BeneficiaryModule } from './beneficiary/beneficiary.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { PaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { AppService } from './app.service';
     // VirtualCardsModule,
     BeneficiaryModule,
     WebhooksModule,
+    PaymentModule,
   ],
   controllers: [AppController],
   providers: [

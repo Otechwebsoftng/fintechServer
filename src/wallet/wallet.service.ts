@@ -4,6 +4,7 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   RequestTimeoutException,
 } from '@nestjs/common';
@@ -19,9 +20,12 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
 import { FundWalletDto } from './dto/fund.dto';
 import { GraphService } from 'src/vendors/graph.service';
-import { PayoutDestinationDto } from './dto/payout.dto';
 import { ResolveBankDto } from './dto/resolveBankDto';
 import { Utility } from 'src/helpers/utilities.service';
+import { InterNGNPayoutDto } from './dto/interNGNPayout.dto';
+import { InternalPayoutDestinationDto } from './dto/internalPayoutDestination.dto';
+import { SwiftPayoutDto } from './dto/swiftPayout.dto';
+// import { SwiftPayoutDto } from './dto/swiftPayout.dto';
 
 @Injectable()
 export class WalletService {
@@ -30,7 +34,7 @@ export class WalletService {
     private readonly usersService: UsersService,
     private readonly prisma: PrismaService,
     private readonly logger: CustomLogger,
-    private readonly graphService: GraphService,
+    private graphService: GraphService,
   ) {}
 
   async getOne(criteria: any) {
@@ -111,11 +115,13 @@ export class WalletService {
               data: {
                 graphStatus: accountData.status,
                 accountNumber: accountData.account_number,
+                iban: accountData.iban,
                 bankName: accountData.bank_name,
                 bankCode: accountData.bank_code,
                 swiftCode: accountData.swift_code,
                 routingNumber: accountData.routing_number,
                 beneficiaryAddress: accountData.beneficiary_address,
+                bankAddress: accountData.bank_address,
                 settlementConfig: accountData.settlement_config,
               },
             });
@@ -136,6 +142,7 @@ export class WalletService {
           swiftCode: responseWallet.swiftCode,
           routingNumber: responseWallet.routingNumber,
           beneficiaryAddress: responseWallet.beneficiaryAddress,
+          bankAddress: responseWallet.bankAddress,
           settlementConfig: responseWallet.settlementConfig,
         };
       } catch (error) {
@@ -238,7 +245,7 @@ export class WalletService {
     // STEP 1: Call external service to verify payment
     const graphPayload = {
       account_id: wallet.virtualAccountId,
-      amount: inputAmount,
+      amount: payload.amount,
       currency: payload.currency,
       description:
         payload.description ||
@@ -319,52 +326,28 @@ export class WalletService {
   // 1a. Payout by Tag (Internal)
   async internalPayoutByTag(
     userId: string,
-    tag: string,
-    payload: PayoutDestinationDto,
+    payload: InternalPayoutDestinationDto,
   ) {
-    const receiver = await this.usersService.getOne({ userTag: tag });
+    const receiver = await this.usersService.getOne({ userTag: payload.tag });
     if (!receiver) throw new NotFoundException('Recipient tag not found');
 
     const destinationWallet = await this.getOne({
       userId: receiver.id,
       currency: payload.currencyTo,
     });
-    return this.processTransfer(userId, payload, destinationWallet, true);
+    if (!destinationWallet) throw new NotFoundException('Wallet not found');
+
+    return this.processUserTagTransfer(
+      userId,
+      payload,
+      destinationWallet,
+      true,
+    );
   }
-
-  // 1b. Payout by Account Number (Auto-detect Internal vs External)
-  async interBankPayout(userId: string, payload: PayoutDestinationDto) {
-    const destinationWallet = await this.getOne({
-      accountNumber: payload.accountNumber,
-      currency: payload.currencyTo,
-    });
-
-    // If the wallet exists in our DB, it's Internal. Otherwise, it's External.
-    const isInternal = !!destinationWallet;
-    if (!isInternal && payload.currencyTo === 'NGN') {
-      try {
-        const resolution = await this.graphService.resolveBank({
-          currency: payload.currencyTo,
-          account_number: payload.accountNumber,
-          bank_code: payload.bankCode, // Ensure this is in your DTO
-        });
-        console.log(resolution);
-
-        // Update payload with verified data from the bank
-        payload.beneficiaryName = resolution.account_name;
-        // You can also verify if the bank exists here if needed
-      } catch (error) {
-        this.logger.error('Bank resolution failed', error);
-        throw new BadRequestException('Could not verify bank account details');
-      }
-    }
-    return this.processTransfer(userId, payload, destinationWallet, isInternal);
-  }
-
-  // 3. THE CORE WORKER (The "Joined" Logic)
-  private async processTransfer(
+  // 1b. THE CORE WORKER FOR USER TAG PAYMENT
+  private async processUserTagTransfer(
     userId: string,
-    payload: PayoutDestinationDto,
+    payload: InternalPayoutDestinationDto,
     destinationWallet: any | null,
     isInternal: boolean,
   ) {
@@ -390,10 +373,13 @@ export class WalletService {
     if (!sourceWallet) throw new NotFoundException('Source wallet not found');
 
     let creditAmount = debitAmount;
+
     if (payload.currencyFrom !== payload.currencyTo) {
       const rates = await this.graphService.fetchRates();
+
       const rate = rates.data[`${payload.currencyFrom}-${payload.currencyTo}`];
       if (!rate) throw new BadRequestException('Currency pair not supported');
+
       creditAmount = Utility.CurrencyBroken(payload.amount * rate);
     }
 
@@ -405,14 +391,18 @@ export class WalletService {
     if (!isPinValid) throw new BadRequestException('Invalid transaction PIN');
 
     // --- STEP 1: DB LEDGER ENTRIES (Atomic) ---
+    const walletIds = [sourceWallet.id, destinationWallet?.id]
+      .filter(Boolean)
+      .sort();
     const { senderTx, receiverTx, senderPayment, receiverPayment } =
       await this.prisma.$transaction(async (tx) => {
-        await tx.$queryRaw`SELECT id FROM "Wallet" WHERE id = ${sourceWallet.id} FOR UPDATE`;
+        await tx.$queryRaw`SELECT id FROM "Wallet" WHERE id = ANY(${walletIds}) FOR UPDATE`;
 
         const balance = await this.getBalanceForWalletInTransaction(
           tx,
           sourceWallet.id,
         );
+
         if (debitAmount > balance)
           throw new BadRequestException('Insufficient balance');
 
@@ -452,7 +442,9 @@ export class WalletService {
               status: PaymentStatus.PENDING,
               paymentEntry: PaymentEntry.CREDIT,
               reference,
-              description: payload.description,
+              description:
+                payload.description ||
+                `Received from ${sourceWallet.user.firstName}`,
             },
           });
           rTx = await tx.walletTransaction.create({
@@ -480,10 +472,11 @@ export class WalletService {
 
     // --- STEP 2: EXTERNAL PROVIDER CALL ---
     try {
-      const payoutData = this.buildPayoutPayload(
+      const payoutData = this.buildInternalPayoutPayload(
         sourceWallet,
         destinationWallet,
-        payload,
+        payload.currencyTo,
+        payload.currencyFrom,
         isInternal,
       );
       const dest = await this.graphService.payoutDestination(payoutData);
@@ -528,14 +521,374 @@ export class WalletService {
         debitTxId: senderTx.id,
       };
     } catch (error) {
+      this.logger.error('TRANSFER_WORKER_CRASH', error);
+
+      if (error.code?.startsWith('P')) {
+        throw new InternalServerErrorException(
+          `Database Error: ${error.code}. Check provider for reference ${reference}`,
+        );
+      }
+
+      const statusCode = error.status || error.response?.status;
+      const isDefinitive = statusCode >= 400 && statusCode < 500;
+      if (isDefinitive && statusCode !== 408) {
+        await this.executeFullReversal(
+          senderTx,
+          senderPayment,
+          sourceWallet,
+          destinationWallet,
+          debitAmount,
+          creditAmount,
+          reference,
+          receiverTx,
+          receiverPayment,
+        );
+        const remoteMessage = error.message || 'Payout failed';
+        throw new BadRequestException(
+          `${remoteMessage}. Funds have been reversed.`,
+        );
+      }
+      throw new RequestTimeoutException(
+        'Processing with bank. Please check history shortly.',
+      );
+    }
+  }
+
+  // 2a. Inter-Bank: External Payout (Same Currency, e.g., NGN to NGN Zenith/Access)
+  async interBankPayout(userId: string, payload: InterNGNPayoutDto) {
+    // If it's external NGN, we verify the name with the bank first
+    const resolveDetails = await this.graphService.resolveBank({
+      currency: payload.currencyTo,
+      account_number: payload.accountNumber,
+      bank_code: payload.bankCode,
+    });
+
+    payload.beneficiary = resolveDetails.account_name;
+
+    const newPayload = {
+      ...payload,
+      beneficiary: payload.beneficiary,
+    };
+
+    const destinationWallet = resolveDetails;
+
+    return this.processInterNGNTransfer(userId, newPayload, destinationWallet);
+  }
+
+  private async processInterNGNTransfer(
+    userId: string,
+    payload: any,
+    destinationWallet: any | null,
+  ) {
+    const reference = payload.reference;
+    const debitAmount = Utility.CurrencyBroken(payload.amount);
+
+    // 1. Idempotency & Validation
+    if (debitAmount <= 0)
+      throw new BadRequestException('Amount must be greater than zero');
+    if (reference) {
+      const existing = await this.getOneWalletTransaction({ reference });
+      if (existing?.status === PaymentStatus.SUCCESS)
+        return { message: 'Already completed', data: existing };
+      if (existing?.status === PaymentStatus.PENDING)
+        throw new ConflictException('Transaction is already processing');
+    }
+
+    // 2. Source & Rate Logic
+    const sourceWallet = await this.getOne({
+      userId,
+      currency: payload.currencyFrom,
+    });
+    if (!sourceWallet) throw new NotFoundException('Source wallet not found');
+
+    let creditAmount = debitAmount;
+
+    if (sourceWallet.currency !== payload.currencyTo) {
+      throw new BadRequestException(
+        'Invalid account selection. Only NGN to NGN is allowed',
+      );
+    }
+
+    creditAmount = Utility.CurrencyBroken(payload.amount);
+
+    // 3. Security Check
+    const isPinValid = await this.usersService.verifyTransactionPin(
+      userId,
+      payload.transactionPin,
+    );
+    if (!isPinValid) throw new BadRequestException('Invalid transaction PIN');
+
+    // --- STEP 1: DB LEDGER ENTRIES (Atomic) ---
+    const { senderTx, senderPayment } = await this.prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Wallet" WHERE id = ${sourceWallet.id} FOR UPDATE`;
+
+        const balance = await this.getBalanceForWalletInTransaction(
+          tx,
+          sourceWallet.id,
+        );
+
+        if (debitAmount > balance)
+          throw new BadRequestException('Insufficient balance');
+
+        // Create Sender Record
+        const sPayment = await tx.payment.create({
+          data: {
+            userId,
+            virtualAccountId: sourceWallet.virtualAccountId,
+            amount: debitAmount,
+            currency: payload.currencyFrom,
+            status: PaymentStatus.PENDING,
+            paymentEntry: PaymentEntry.DEBIT,
+            reference,
+            description: payload.description || 'Payout',
+          },
+        });
+        const sTx = await tx.walletTransaction.create({
+          data: {
+            walletId: sourceWallet.id,
+            amount: debitAmount,
+            currency: payload.currencyFrom,
+            transactionType: PaymentEntry.DEBIT,
+            status: PaymentStatus.PENDING,
+            reference,
+            paymentId: sPayment.id,
+            description: sPayment.description,
+          },
+        });
+
+        return {
+          senderTx: sTx,
+          senderPayment: sPayment,
+        };
+      },
+    );
+
+    // --- STEP 2: EXTERNAL PROVIDER CALL ---
+    try {
+      const payoutData = {
+        account_id: sourceWallet.virtualAccountId,
+        account_type: 'personal',
+        source_type: 'bank_account',
+        destination_type: 'bank_account',
+        label: 'Inter Bank Payout',
+        type: 'nip',
+        bank_code: payload.bankCode,
+        account_number: payload.accountNumber,
+        beneficiary_name: payload.beneficiary,
+      };
+
+      const dest = await this.graphService.payoutDestination(payoutData);
+      const response = await this.graphService.payout({
+        destination_id: dest.id,
+        amount: creditAmount,
+        description: payload.description,
+        idempotency_key: reference,
+      });
+
+      // Update with Provider IDs
+      await this.prisma.$transaction([
+        this.prisma.walletTransaction.update({
+          where: { id: senderTx.id },
+          data: { payoutId: response?.transaction.payout_id },
+        }),
+
+        this.prisma.payment.update({
+          where: { id: senderPayment.id },
+          data: { transactionId: response?.transaction.id },
+        }),
+      ]);
+
+      return {
+        message: 'Payout initiated, awaiting confirmation',
+        response,
+        debitTxId: senderTx.id,
+      };
+    } catch (error) {
+      const statusCode = error.status || error.response?.status;
+      const isDefinitive = statusCode >= 400 && statusCode < 500;
+      if (isDefinitive) {
+        await this.executeFullReversal(
+          senderTx,
+          senderPayment,
+          sourceWallet,
+          destinationWallet,
+          debitAmount,
+          creditAmount,
+          reference,
+        );
+        // Use the actual error message from the provider if available
+        const remoteMessage = error.message || 'Payout failed';
+        throw new BadRequestException(
+          `${remoteMessage}. Funds have been reversed.`,
+        );
+      }
+      throw new RequestTimeoutException(
+        'Processing with bank. Please check history shortly.',
+      );
+    }
+  }
+
+  // 1b. Payout outside graph environment for NGN to NGN (Zenith Banks, Access banks and also To Foreign banks)
+  async ForeignBankPayout(userId: string, payload: SwiftPayoutDto) {
+    const sourceWallet = await this.getOne({
+      userId,
+      currency: payload.currencyFrom,
+    });
+
+    const destinationWallet = {
+      account_id: sourceWallet.virtualAccountId,
+      source_type: 'bank_account',
+      label: 'Wire Payout',
+      type: 'wire',
+      wire_type: 'swift',
+      destination_type: 'bank_account',
+      account_type: 'personal',
+      account_number: payload.accountNumber,
+      routing_number: payload.routingNumber,
+      bank_name: payload.bankName,
+      beneficiary_name: payload.beneficiaryName,
+      beneficiary_address: {
+        line1: payload.beneficiaryAddress,
+        city: payload.beneficiaryAddress,
+        state: payload.beneficiaryAddress,
+        country: payload.beneficiaryAddress,
+        postal_code: payload.beneficiaryAddress,
+      },
+      bank_address: payload.bankAddress,
+    };
+
+    return this.processSwiftTransfer(userId, payload, destinationWallet);
+  }
+
+  private async processSwiftTransfer(
+    userId: string,
+    payload: SwiftPayoutDto,
+    destinationWallet: any | null,
+  ) {
+    const reference = payload.reference;
+    const debitAmount = Utility.CurrencyBroken(payload.amount);
+
+    // 1. Idempotency & Validation
+    if (debitAmount <= 0)
+      throw new BadRequestException('Amount must be greater than zero');
+    if (reference) {
+      const existing = await this.getOneWalletTransaction({ reference });
+      if (existing?.status === PaymentStatus.SUCCESS)
+        return { message: 'Already completed', data: existing };
+      if (existing?.status === PaymentStatus.PENDING)
+        throw new ConflictException('Transaction is already processing');
+    }
+
+    // 2. Source & Rate Logic
+    const sourceWallet = await this.getOne({
+      userId,
+      currency: payload.currencyFrom,
+    });
+    if (!sourceWallet) throw new NotFoundException('Source wallet not found');
+
+    let creditAmount = debitAmount;
+
+    if (payload.currencyFrom !== payload.currencyTo) {
+      const rates = await this.graphService.fetchRates();
+
+      const rate = rates.data[`${payload.currencyFrom}-${payload.currencyTo}`];
+      if (!rate) throw new BadRequestException('Currency pair not supported');
+
+      creditAmount = Utility.CurrencyBroken(payload.amount * rate);
+    }
+
+    // 3. Security Check
+    const isPinValid = await this.usersService.verifyTransactionPin(
+      userId,
+      payload.transactionPin,
+    );
+    if (!isPinValid) throw new BadRequestException('Invalid transaction PIN');
+
+    // --- STEP 1: DB LEDGER ENTRIES (Atomic) ---
+    const { senderTx, senderPayment } = await this.prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Wallet" WHERE id = ${sourceWallet.id} FOR UPDATE`;
+
+        const balance = await this.getBalanceForWalletInTransaction(
+          tx,
+          sourceWallet.id,
+        );
+
+        if (debitAmount > balance)
+          throw new BadRequestException('Insufficient balance');
+
+        // Create Sender Record
+        const sPayment = await tx.payment.create({
+          data: {
+            userId,
+            virtualAccountId: sourceWallet.virtualAccountId,
+            amount: debitAmount,
+            status: PaymentStatus.PENDING,
+            paymentEntry: PaymentEntry.DEBIT,
+            reference,
+            description: payload.description || 'Payout',
+          },
+        });
+        const sTx = await tx.walletTransaction.create({
+          data: {
+            walletId: sourceWallet.id,
+            amount: debitAmount,
+            currency: payload.currencyFrom,
+            transactionType: PaymentEntry.DEBIT,
+            status: PaymentStatus.PENDING,
+            reference,
+            paymentId: sPayment.id,
+            description: sPayment.description,
+          },
+        });
+
+        return {
+          senderTx: sTx,
+          senderPayment: sPayment,
+        };
+      },
+    );
+
+    // --- STEP 2: EXTERNAL PROVIDER CALL ---
+    try {
+      const payoutData = this.buildWirePayoutPayload(
+        sourceWallet,
+        destinationWallet,
+      );
+      const dest = await this.graphService.payoutDestination(payoutData);
+      const response = await this.graphService.payout({
+        destination_id: dest.id,
+        amount: creditAmount,
+        description: payload.description,
+        idempotency_key: reference,
+      });
+
+      // Update with Provider IDs
+      await this.prisma.$transaction([
+        this.prisma.walletTransaction.update({
+          where: { id: senderTx.id },
+          data: { payoutId: response?.transaction.payout_id },
+        }),
+
+        this.prisma.payment.update({
+          where: { id: senderPayment.id },
+          data: { transactionId: response?.transaction.id },
+        }),
+      ]);
+
+      return {
+        message: 'Payout initiated; awaiting confirmation',
+        response,
+        debitTxId: senderTx.id,
+      };
+    } catch (error) {
       const isDefinitive =
         error.response?.status >= 400 && error.response?.status < 500;
       if (isDefinitive) {
         await this.executeFullReversal(
           senderTx,
-          receiverTx,
           senderPayment,
-          receiverPayment,
           sourceWallet,
           destinationWallet,
           debitAmount,
@@ -623,74 +976,100 @@ export class WalletService {
     }
   }
 
-  private buildPayoutPayload(
+  private buildInternalPayoutPayload(
     sourceWallet: any,
-    destinationWallet: any,
-    payload: PayoutDestinationDto,
+    destinationWallet: any | null,
+    currencyTo: Currency,
+    currencyFrom: Currency,
     isInternal: boolean,
   ) {
-    // Scenario A: Internal P2P (Same Currency)
-    if (isInternal && payload.currencyFrom === payload.currencyTo) {
+    if (isInternal && currencyFrom !== currencyTo) {
       return {
         account_id: sourceWallet.virtualAccountId,
         source_type: 'bank_account',
         label: 'Internal Payout',
-        type: 'internal',
-        destination_account_id: destinationWallet.virtualAccountId,
-        destination_type: 'bank_account',
-        bank_code: destinationWallet.bankCode,
-        account_number: destinationWallet.accountNumber,
-      };
-    }
-
-    // Scenario B: Cross-Currency (e.g., USD Wire/Swift)
-    if (payload.currencyFrom !== payload.currencyTo) {
-      return {
-        account_id: sourceWallet.virtualAccountId,
-        source_type: 'bank_account',
-        label: 'Wire Payout',
         type: 'wire',
         wire_type: 'swift',
+        destination_account_id: destinationWallet.virtualAccountId,
         destination_type: 'bank_account',
         account_type: 'personal',
         account_number: destinationWallet.accountNumber,
         routing_number: destinationWallet.routingNumber,
-        bank_name: destinationWallet.bankName,
         beneficiary_name: `${destinationWallet.user.firstName} ${destinationWallet.user.lastName}`,
         beneficiary_address: {
-          line1: destinationWallet.user.taxAddress?.houseNo,
-          city: destinationWallet.user.taxAddress?.city,
-          state: destinationWallet.user.taxAddress?.state,
-          country: destinationWallet.user.taxAddress?.country,
-          postal_code: destinationWallet.user.taxAddress?.zipCode,
+          line1: destinationWallet.beneficiaryAddress.line1,
+          city: destinationWallet.beneficiaryAddress.city,
+          state: destinationWallet.beneficiaryAddress.state,
+          postal_code: destinationWallet.beneficiaryAddress.postal_code,
+          country: destinationWallet.beneficiaryAddress.country,
         },
-        bank_address: destinationWallet.beneficiaryAddress,
+        bank_name: destinationWallet.bankName,
+        bank_address: {
+          line1: destinationWallet.bankAddress.line1,
+          city: destinationWallet.bankAddress.city,
+          state: destinationWallet.bankAddress.state,
+          postal_code: destinationWallet.bankAddress.postal_code,
+          country: destinationWallet.bankAddress.country,
+        },
       };
     }
-
-    // Scenario C: External NGN Transfer (NIP)
+    if (isInternal && currencyFrom === currencyTo) {
+      return {
+        account_id: sourceWallet.virtualAccountId,
+        account_type: 'personal',
+        source_type: 'wallet_account',
+        label: 'Internal Payout',
+        type: 'internal',
+        destination_account_id: destinationWallet.virtualAccountId,
+        destination_type: 'wallet_account',
+        account_number: destinationWallet.accountNumber,
+      };
+    }
+  }
+  private buildWirePayoutPayload(
+    sourceWallet: any,
+    destinationWallet: any | null,
+  ) {
     return {
       account_id: sourceWallet.virtualAccountId,
+      source_type: 'wallet_account',
+      label: 'Internal Payout',
+      type: 'wire',
+      wire_type: 'swift',
+      destination_account_id: destinationWallet.virtualAccountId,
+      destination_type: 'wallet_account',
       account_type: 'personal',
-      source_type: 'bank_account',
-      label: 'Inter Bank Payout',
-      type: 'nip',
-      bank_code: payload.bankCode,
       account_number: destinationWallet.accountNumber,
-      beneficiary_name: payload.beneficiaryName,
+      routing_number: destinationWallet.routingNumber,
+      beneficiary_name: `${destinationWallet.user.firstName} ${destinationWallet.user.lastName}`,
+      beneficiary_address: {
+        line1: destinationWallet.beneficiaryAddress.line1,
+        city: destinationWallet.beneficiaryAddress.city,
+        state: destinationWallet.beneficiaryAddress.state,
+        postal_code: destinationWallet.beneficiaryAddress.postal_code,
+        country: destinationWallet.beneficiaryAddress.country,
+      },
+      bank_name: destinationWallet.bankName,
+      bank_address: {
+        line1: destinationWallet.bankAddress.line1,
+        city: destinationWallet.bankAddress.city,
+        state: destinationWallet.bankAddress.state,
+        postal_code: destinationWallet.bankAddress.postal_code,
+        country: destinationWallet.bankAddress.country,
+      },
     };
   }
 
   private async executeFullReversal(
     senderTx: any,
-    receiverTx: any | null,
     senderPayment: any,
-    receiverPayment: any | null,
     sourceWallet: any,
     destinationWallet: any | null,
     debitAmount: number,
     creditAmount: number,
     reference: string,
+    receiverTx?: any | null,
+    receiverPayment?: any | null,
   ) {
     return this.prisma.$transaction(async (tx) => {
       // 1. Mark original records as FAILED

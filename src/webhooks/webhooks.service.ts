@@ -175,7 +175,7 @@ export class WebhookService {
         ? PaymentStatus.SUCCESS
         : PaymentStatus.FAILED;
 
-    const existingPayment = await this.prisma.payment.findUnique({
+    const existingPayment = await this.prisma.payment.findFirst({
       where: { transactionId: depositId },
     });
 

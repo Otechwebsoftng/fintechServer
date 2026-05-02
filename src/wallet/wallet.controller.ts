@@ -11,8 +11,10 @@ import { Currency, User } from '@prisma/client';
 import { WalletService } from './wallet.service';
 import { FundWalletDto } from './dto/fund.dto';
 import { Throttle } from '@nestjs/throttler';
-import { PayoutDestinationDto } from './dto/payout.dto';
 import { ResolveBankDto } from './dto/resolveBankDto';
+import { InternalPayoutDestinationDto } from './dto/internalPayoutDestination.dto';
+import { InterNGNPayoutDto } from './dto/interNGNPayout.dto';
+import { SwiftPayoutDto } from './dto/swiftPayout.dto';
 
 @ApiTags('Wallet')
 @ApiBearerAuth('JWT-auth')
@@ -26,7 +28,7 @@ export class WalletController {
   })
   @Get('/user-wallets')
   @UseGuards(AuthGuard())
-  async checkKycStatus(@CurrentUser() user: User) {
+  async getUserWallets(@CurrentUser() user: User) {
     const userId = user.id;
     return this.walletService.getUserWallets(userId);
   }
@@ -91,32 +93,32 @@ export class WalletController {
     return this.walletService.fundOwnWallet(userId, payload);
   }
 
-  @ApiOperation({
-    description: 'Internal Payout',
-    summary:
-      'Initiate an internal payout from one wallet to another regardless of the currency',
-  })
-  @Post('/internal-payout')
-  @UseGuards(AuthGuard())
-  @Throttle({ short: { limit: 3, ttl: 60000 } })
-  async internalPayout(
-    @Body() payload: PayoutDestinationDto,
-    @CurrentUser() user: User,
-  ) {
-    const userId = user.id;
-    return this.walletService.interBankPayout(userId, payload);
-  }
+  // @ApiOperation({
+  //   description: 'Internal Payout',
+  //   summary:
+  //     'Initiate an internal payout from one wallet to another regardless of the currency',
+  // })
+  // @Post('/internal-payout')
+  // @UseGuards(AuthGuard())
+  // @Throttle({ short: { limit: 3, ttl: 60000 } })
+  // async internalPayout(
+  //   @Body() payload: PayoutDestinationDto,
+  //   @CurrentUser() user: User,
+  // ) {
+  //   const userId = user.id;
+  //   return this.walletService.interBankPayout(userId, payload);
+  // }
 
   @ApiOperation({
-    description: 'External Payout',
+    description: 'Inter Nigeria bank transfer',
     summary:
-      'Initiate an external payout from graph wallet to external NGN banks eg Zenith, Access',
+      'Initiate an inter bank transfer from graph wallet to external NGN banks eg Zenith, Access',
   })
-  @Post('/external-payout')
+  @Post('/inter-bank-transfer')
   @UseGuards(AuthGuard())
   @Throttle({ short: { limit: 3, ttl: 60000 } })
   async externalPayout(
-    @Body() payload: PayoutDestinationDto,
+    @Body() payload: InterNGNPayoutDto,
     @CurrentUser() user: User,
   ) {
     const userId = user.id;
@@ -132,12 +134,26 @@ export class WalletController {
   @UseGuards(AuthGuard())
   @Throttle({ short: { limit: 3, ttl: 60000 } }) // 3 requests per minute
   async internalPayoutByTag(
-    @Body() payload: PayoutDestinationDto,
+    @Body() payload: InternalPayoutDestinationDto,
     @CurrentUser() user: User,
   ) {
     const userId = user.id;
-    const tag = payload.tag;
-    return this.walletService.internalPayoutByTag(userId, tag, payload);
+    return this.walletService.internalPayoutByTag(userId, payload);
+  }
+
+  @ApiOperation({
+    description: 'Wire Payout',
+    summary: 'Initiate an Wire payout from one wallet to another via user tag',
+  })
+  @Post('/fund-user-tag')
+  @UseGuards(AuthGuard())
+  @Throttle({ short: { limit: 3, ttl: 60000 } }) // 3 requests per minute
+  async WireTransfer(
+    @Body() payload: SwiftPayoutDto,
+    @CurrentUser() user: User,
+  ) {
+    const userId = user.id;
+    return this.walletService.ForeignBankPayout(userId, payload);
   }
 
   @ApiOperation({

@@ -9,32 +9,11 @@ import {
   Min,
 } from 'class-validator';
 
-export class PayoutDestinationDto {
+export class InternalPayoutDestinationDto {
   @ApiProperty({ description: 'Used only for tag transfer' })
   @IsOptional()
   @IsString()
   readonly tag: string;
-
-  @ApiProperty({
-    description: 'destination account number. Not required for tags',
-  })
-  @IsOptional()
-  @IsString()
-  readonly accountNumber: string;
-
-  @ApiProperty({
-    description: 'Bank Code For nip transfer',
-  })
-  @IsOptional()
-  @IsString()
-  readonly bankCode: string;
-
-  @ApiProperty({
-    description: 'Beneficiary name For nip transfer',
-  })
-  @IsOptional()
-  @IsString()
-  beneficiaryName: string;
 
   @ApiProperty({ description: 'Currency to transfer from' })
   @IsOptional()

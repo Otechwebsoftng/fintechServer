@@ -185,7 +185,7 @@ model Payment {
   id                String              @id @default(uuid())
   userId            String?
   virtualAccountId  String?             @db.VarChar(100)
-  transactionId     String?             @unique
+  transactionId     String?             
   reference         String?
   status            PaymentStatus       @default(PENDING)
   currency          Currency            @default(NGN)
@@ -224,6 +224,7 @@ model Wallet {
   iban               String?             @db.VarChar(34)
   routingNumber      String?             @db.VarChar(20)
   beneficiaryAddress Json?
+  bankAddress        Json?
   autoSweep          Boolean             @default(false)
   whiteListEnabled   Boolean             @default(false)
   settlementConfig   Json?
@@ -252,7 +253,7 @@ model WalletTransaction {
   amount              Float?              @default(0)
   currency            Currency
   transactionType     PaymentEntry
-  payoutId            String?             @unique
+  payoutId            String?             
   reference           String?
   idempotencyKey      String?             @unique
   description         String?

@@ -1,39 +1,42 @@
 import { HttpException, InternalServerErrorException } from '@nestjs/common';
 // import axios from 'axios';
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosRequestConfig } from 'axios';
 
 export class APIRequest {
-  option: Record<string, unknown>;
-  httpClient: AxiosInstance;
+  private readonly config: AxiosRequestConfig;
 
-  constructor(options: Record<string, unknown>) {
-    this.option = Object.assign(
-      { headers: { 'Content-Type': 'application/json' } },
-      options,
-    );
+  constructor(options: AxiosRequestConfig) {
+    this.config = {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    };
   }
 
-  async get(url: string, params: Record<string, unknown> = {}) {
-    this.option.params = params;
+  async get(url: string, params: Record<string, any> = {}) {
     try {
-      const response = await axios.get(url, this.option);
+      // Pass this.config as the second argument
+      const response = await axios.get(url, { ...this.config, params });
       return response.data;
-    } catch (err: any) {
+    } catch (err) {
+      throw this.handleError(err);
+    }
+  }
+
+  async patch(url: string, body?: any) {
+    try {
+      const response = await axios.patch(url, body, this.config);
+      return response.data;
+    } catch (err) {
       throw this.handleError(err);
     }
   }
 
   async put(url: string, body?: any) {
     try {
-      const response = await axios.put(url, body, this.option);
-      return response.data;
-    } catch (err) {
-      throw this.handleError(err);
-    }
-  }
-  async patch(url: string, body?: any) {
-    try {
-      const response = await axios.patch(url, body, this.option);
+      const response = await axios.put(url, body, this.config);
       return response.data;
     } catch (err) {
       throw this.handleError(err);
@@ -42,7 +45,8 @@ export class APIRequest {
 
   async post(url: string, body?: any) {
     try {
-      const response = await axios.post(url, body, this.option);
+      // Pass this.config as the third argument
+      const response = await axios.post(url, body, this.config);
       return response.data;
     } catch (err) {
       throw this.handleError(err);
@@ -51,7 +55,7 @@ export class APIRequest {
 
   async trash(url: string) {
     try {
-      const response = await axios.delete(url, this.option);
+      const response = await axios.delete(url, this.config);
       return response.data;
     } catch (err) {
       throw this.handleError(err);
@@ -60,14 +64,18 @@ export class APIRequest {
 
   handleError(err) {
     if (err.response) {
-      const errorData = err.response.data.errors
-        ? err.response.data.errors
-        : err.response.data;
-      console.log(errorData);
-      throw new HttpException(err.response.statusText, err.response.status);
+      console.log(err)
+      // The server responded with a status code (4xx, 5xx)
+      const statusCode = err.response.status;
+      const message = err.response.data?.message || err.response.statusText;
+
+      // This allows your worker to see the REAL status (e.g., 400 for bad balance)
+      throw new HttpException(message, statusCode);
     } else if (err.request) {
-      throw new InternalServerErrorException('Request failed');
+      // The request was made but no response was received (True Timeout)
+      throw new HttpException('External Provider Timeout', 408);
     } else {
+      // Something happened in setting up the request
       throw new InternalServerErrorException(err.message);
     }
   }
