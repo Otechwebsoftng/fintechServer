@@ -12,6 +12,7 @@ import {
   Currency,
   PaymentEntry,
   PaymentStatus,
+  Prisma,
   WalletStatus,
   WalletType,
 } from '@prisma/client';
@@ -556,7 +557,6 @@ export class WalletService {
 
   // 2a. Inter-Bank: External Payout (Same Currency, e.g., NGN to NGN Zenith/Access)
   async interBankPayout(userId: string, payload: InterNGNPayoutDto) {
-    // If it's external NGN, we verify the name with the bank first
     const resolveDetails = await this.graphService.resolveBank({
       currency: payload.currencyTo,
       account_number: payload.accountNumber,
@@ -609,7 +609,7 @@ export class WalletService {
       );
     }
 
-    creditAmount = Utility.CurrencyBroken(payload.amount);
+    creditAmount = Utility.nairaToKobo(payload.amount);
 
     // 3. Security Check
     const isPinValid = await this.usersService.verifyTransactionPin(
@@ -729,7 +729,7 @@ export class WalletService {
     }
   }
 
-  // 1b. Payout outside graph environment for NGN to NGN (Zenith Banks, Access banks and also To Foreign banks)
+  // 1b. Payout outside graph environment for foreign accounts
   async ForeignBankPayout(userId: string, payload: SwiftPayoutDto) {
     const sourceWallet = await this.getOne({
       userId,
@@ -916,12 +916,22 @@ export class WalletService {
     }
 
     const walletCredit = await this.prisma.walletTransaction.aggregate({
-      where: { walletId: wallet.id, transactionType: PaymentEntry.CREDIT },
+      where: {
+        walletId: wallet.id,
+        transactionType: PaymentEntry.CREDIT,
+        status: PaymentStatus.SUCCESS,
+      },
       _sum: { amount: true },
     });
 
     const walletDebit = await this.prisma.walletTransaction.aggregate({
-      where: { walletId: wallet.id, transactionType: PaymentEntry.DEBIT },
+      where: {
+        walletId: wallet.id,
+        transactionType: PaymentEntry.DEBIT,
+        status: {
+          in: [PaymentStatus.SUCCESS, PaymentStatus.PENDING],
+        },
+      },
       _sum: { amount: true },
     });
 
@@ -974,6 +984,65 @@ export class WalletService {
       this.logger.error('Fetch banks failed', error);
       throw new BadRequestException('Failed to fetch banks');
     }
+  }
+
+  async history(
+    userId: string,
+    currencyFilter?: Currency,
+    page?: number,
+    pageSize?: number,
+  ) {
+    if (!currencyFilter || !Object.values(Currency).includes(currencyFilter)) {
+      throw new BadRequestException(
+        `Invalid or missing currency filter. Expected one of: ${Object.values(Currency).join(', ')}`,
+      );
+    }
+
+    const shouldPaginate = !!(
+      page &&
+      pageSize &&
+      !isNaN(Number(page)) &&
+      !isNaN(Number(pageSize))
+    );
+    const skip = shouldPaginate ? (Number(page) - 1) * Number(pageSize) : 0;
+    const take = shouldPaginate ? Number(pageSize) : undefined;
+
+    const wallet = await this.getOne({ userId, currency: currencyFilter });
+    if (!wallet) {
+      throw new NotFoundException(
+        `Wallet ledger context not found for user under currency: ${currencyFilter}`,
+      );
+    }
+
+    const whereClause: Prisma.WalletTransactionWhereInput = {
+      walletId: wallet.id,
+      currency: currencyFilter,
+      isDeleted: false,
+    };
+
+    const [transactions, totalCount] = await Promise.all([
+      this.prisma.walletTransaction.findMany({
+        where: whereClause,
+        ...(shouldPaginate ? { skip, take } : {}),
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.walletTransaction.count({ where: whereClause }),
+    ]);
+
+    const count = totalCount || 0;
+    const hasNext = shouldPaginate ? skip + (take ?? count) < count : false;
+    const hasPrevious = shouldPaginate ? Number(page) > 1 : false;
+
+    return {
+      pagination: {
+        page: shouldPaginate ? Number(page) : 1,
+        pageSize: shouldPaginate ? Number(pageSize) : count,
+        hasNext,
+        hasPrevious,
+        count,
+      },
+      data: transactions,
+    };
   }
 
   private buildInternalPayoutPayload(

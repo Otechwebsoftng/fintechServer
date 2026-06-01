@@ -33,6 +33,48 @@ export class WalletController {
     return this.walletService.getUserWallets(userId);
   }
 
+  @Get('/history')
+  @ApiOperation({
+    description: ' Fetch Transaction History',
+    summary: 'Fetch transaction history of a logged in user',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: 'Page number for pagination',
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    description: 'Number of users to return per page',
+  })
+  @ApiQuery({
+    name: 'currency',
+    required: false,
+    enum: Currency,
+    description: 'Filter transaction history by currency',
+  })
+  @UseGuards(AuthGuard())
+  async getAllUsers(
+    @CurrentUser() user: User,
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+    @Query('currency') currency?: Currency,
+  ) {
+    const userId = user.id;
+    return this.walletService.history(userId, currency, page, pageSize);
+  }
+
+  @ApiOperation({
+    description: 'Get Banks',
+    summary: 'Get the list of available banks',
+  })
+  @Get('/list-banks')
+  @UseGuards(AuthGuard())
+  async fetchBanks() {
+    return this.walletService.fetchBanks();
+  }
+
   @ApiOperation({
     description: 'Get Account Details',
     summary: 'Get the details of a specific account',

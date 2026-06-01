@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsNumber, IsString } from 'class-validator';
+import { IsNotEmpty, IsString } from 'class-validator';
 
-export class CreateBeneficiaryOtpDto {
+export class CreateBeneficiaryDto {
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
@@ -14,8 +14,8 @@ export class CreateBeneficiaryOtpDto {
 
   @ApiProperty()
   @IsNotEmpty()
-  @IsNumber()
-  readonly accountNumber: number;
+  @IsString()
+  readonly accountNumber: string;
 
   @ApiProperty()
   @IsNotEmpty()
