@@ -6,7 +6,12 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { Logger } from '@nestjs/common';
 import { MailService } from 'src/mail/mail.service';
-import { Currency, PaymentEntry, PaymentStatus } from '@prisma/client';
+import {
+  Currency,
+  PaymentEntry,
+  PaymentStatus,
+  WalletStatus,
+} from '@prisma/client';
 import { SignatureService } from './signature.service';
 import { Utility } from 'src/helpers/utilities.service';
 
@@ -57,10 +62,64 @@ export class WebhookService {
     }
   }
 
+  async graphWalletWebhook(payload: any, signature: string) {
+    this.validateSignature(payload, signature);
+
+    const holderId = payload.data?.holder_id;
+    const providerStatus = payload.data?.status;
+
+    if (!holderId) {
+      throw new BadRequestException('Missing holder_id in webhook payload');
+    }
+
+    const targetStatus = this.mapWalletStatus(providerStatus);
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.findFirst({
+          where: { graphPersonId: holderId },
+          select: { id: true },
+        });
+
+        if (!user) {
+          throw new NotFoundException(
+            `User not found for the provided holder_id`,
+          );
+        }
+
+        await tx.wallet.updateMany({
+          where: {
+            userId: user.id,
+            status: { not: WalletStatus.APPROVED },
+          },
+          data: {
+            status: targetStatus,
+          },
+        });
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to process wallet webhook for holder_id ${holderId}: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
   private validateSignature(payload: any, signature: string) {
     if (!this.signatureService.verifySignature(payload, signature)) {
       this.logger.warn('Invalid webhook signature');
       throw new BadRequestException('Invalid signature');
+    }
+  }
+
+  private mapWalletStatus(providerStatus: string): WalletStatus {
+    switch (providerStatus) {
+      case 'active':
+        return WalletStatus.APPROVED;
+      case 'failed':
+        return WalletStatus.REJECTED;
+      default:
+        return WalletStatus.PENDING;
     }
   }
 
