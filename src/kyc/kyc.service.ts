@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ConsoleLogger,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -254,6 +255,7 @@ export class KycService {
       console.log({ duplicateDate: duplicate, userDate: user });
 
       const cleanupImage = async (publicId?: string) => {
+        console.log(publicId);
         if (!publicId) return;
         try {
           await Utility.destroy(publicId);
