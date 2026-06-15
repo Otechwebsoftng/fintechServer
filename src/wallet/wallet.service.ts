@@ -364,9 +364,9 @@ export class WalletService {
       throw new BadRequestException('Amount must be greater than zero');
     if (reference) {
       const existing = await this.getOneWalletTransaction({ reference });
-      if (existing?.status === PaymentStatus.SUCCESS)
+      if (existing?.data.status === PaymentStatus.SUCCESS)
         return { message: 'Already completed', data: existing };
-      if (existing?.status === PaymentStatus.PENDING)
+      if (existing?.data.status === PaymentStatus.PENDING)
         throw new ConflictException('Transaction is already processing');
     }
 
@@ -592,9 +592,9 @@ export class WalletService {
       throw new BadRequestException('Amount must be greater than zero');
     if (reference) {
       const existing = await this.getOneWalletTransaction({ reference });
-      if (existing?.status === PaymentStatus.SUCCESS)
+      if (existing?.data.status === PaymentStatus.SUCCESS)
         return { message: 'Already completed', data: existing };
-      if (existing?.status === PaymentStatus.PENDING)
+      if (existing?.data.status === PaymentStatus.PENDING)
         throw new ConflictException('Transaction is already processing');
     }
 
@@ -778,9 +778,9 @@ export class WalletService {
       throw new BadRequestException('Amount must be greater than zero');
     if (reference) {
       const existing = await this.getOneWalletTransaction({ reference });
-      if (existing?.status === PaymentStatus.SUCCESS)
+      if (existing?.data.status === PaymentStatus.SUCCESS)
         return { message: 'Already completed', data: existing };
-      if (existing?.status === PaymentStatus.PENDING)
+      if (existing?.data.status === PaymentStatus.PENDING)
         throw new ConflictException('Transaction is already processing');
     }
 
