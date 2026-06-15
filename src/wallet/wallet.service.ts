@@ -56,9 +56,13 @@ export class WalletService {
   }
 
   async getOneWalletTransaction(criteria: any) {
-    return await this.prisma.walletTransaction.findFirst({
+    const result = await this.prisma.walletTransaction.findFirst({
       where: { ...criteria },
     });
+
+    return {
+      data: result,
+    };
   }
 
   async viewAccountDetails(
@@ -154,7 +158,7 @@ export class WalletService {
       }
     }
 
-    return walletsByCurrency;
+    return { data: walletsByCurrency };
   }
 
   //Wallet creation logic for NGN, USD and EUR is the same except for the currency type.
@@ -940,7 +944,7 @@ export class WalletService {
 
     const balance = totalCredit - totalDebit;
 
-    return { currency: wallet.currency, balance };
+    return { data: { currency: wallet.currency, balance } };
   }
 
   async getBalance(walletId: string): Promise<{ data: number }> {
