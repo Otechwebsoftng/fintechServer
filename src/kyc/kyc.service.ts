@@ -238,7 +238,6 @@ export class KycService {
     try {
       const idNumber = payload.number.trim();
       const normalizedType = type.trim();
-      console.log(idNumber);
       if (!file) {
         throw new BadRequestException('File upload required');
       }
@@ -252,10 +251,7 @@ export class KycService {
         }),
       ]);
 
-      console.log({ duplicateDate: duplicate, userDate: user });
-
       const cleanupImage = async (publicId?: string) => {
-        console.log(publicId);
         if (!publicId) return;
         try {
           await Utility.destroy(publicId);

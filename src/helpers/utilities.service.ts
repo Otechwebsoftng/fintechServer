@@ -141,7 +141,6 @@ export class Utility {
     this.ensureCloudinaryConfig();
 
     return new Promise((resolve, reject) => {
-      console.log('upload');
       const uploadStream = cloudinary.uploader.upload_stream(
         { folder: `${folder}` },
         (error, result) => {
@@ -155,7 +154,6 @@ export class Utility {
               url: result.url,
               secure_url: result.secure_url,
             };
-            console.log({ imageResponse: response });
             resolve(response);
           } else {
             reject(
