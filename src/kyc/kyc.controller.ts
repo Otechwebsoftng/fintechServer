@@ -106,6 +106,7 @@ export class KycController {
       throw new BadRequestException('type query parameter is required');
     }
     const userId = user.id;
+    console.log(userId);
     return this.kycService.verifyTier1IdType(userId, type, payload, file);
   }
 

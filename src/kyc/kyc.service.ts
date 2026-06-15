@@ -237,9 +237,9 @@ export class KycService {
     try {
       const idNumber = payload.number.trim();
       const normalizedType = type.trim();
-
+      console.log(idNumber);
       if (!file) {
-        throw new BadRequestException('Utility bill image is required');
+        throw new BadRequestException('File upload required');
       }
       const [user, duplicate] = await Promise.all([
         this.usersService.getOne({ id: userId }),
@@ -250,6 +250,8 @@ export class KycService {
           tier1idNo: idNumber,
         }),
       ]);
+
+      console.log({ duplicateDate: duplicate, userDate: user });
 
       const cleanupImage = async (publicId?: string) => {
         if (!publicId) return;
@@ -265,7 +267,7 @@ export class KycService {
         uploaded = await Utility.uploadImage(file, 'Person_Creation_tier1');
       } catch {
         await cleanupImage(uploaded?.publicId);
-        throw new BadRequestException('Failed to upload utility bill');
+        throw new BadRequestException('Failed to upload document');
       }
 
       if (!user) throw new NotFoundException('User not found');
