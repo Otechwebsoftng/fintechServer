@@ -26,7 +26,7 @@ import { Utility } from 'src/helpers/utilities.service';
 import { InterNGNPayoutDto } from './dto/interNGNPayout.dto';
 import { InternalPayoutDestinationDto } from './dto/internalPayoutDestination.dto';
 import { SwiftPayoutDto } from './dto/swiftPayout.dto';
-// import { SwiftPayoutDto } from './dto/swiftPayout.dto';
+import axios from 'axios';
 
 @Injectable()
 export class WalletService {
@@ -163,15 +163,64 @@ export class WalletService {
 
   //Wallet creation logic for NGN, USD and EUR is the same except for the currency type.
 
+  // async createVirtualAccountForCurrency(
+  //   userId: string,
+  //   graphPersonId: string,
+  //   currency: Currency,
+  // ) {
+  //   // Check if NGN wallet already exists for this user
+  //   const existingWallet = await this.getOne({
+  //     userId,
+  //     currency: currency,
+  //   });
+
+  //   if (existingWallet) {
+  //     return {
+  //       message: `${currency} wallet already exists`,
+  //       data: existingWallet,
+  //     };
+  //   }
+
+  //   // Generate Graph NGN account
+  //   const graphResponse = await this.graphService.createVirtualAccount(
+  //     graphPersonId,
+  //     currency,
+  //   );
+
+  //   // Create wallet in database
+  //   const newWallet = await this.prisma.wallet.create({
+  //     data: {
+  //       userId: userId,
+  //       currency: currency,
+  //       accountType: WalletType.INDIVIDUAL,
+  //       holderId: graphResponse.holder_id,
+  //       holderType: graphResponse.holder_type,
+  //       virtualAccountId: graphResponse.id,
+  //       status: WalletStatus.APPROVED,
+  //       bankName: graphResponse.bank_name,
+  //       bankCode: graphResponse.bank_code,
+  //       accountNumber: graphResponse.account_number,
+  //       graphStatus: graphResponse.status,
+  //     },
+  //   });
+
+  //   const { isDeleted, createdAt, updatedAt, ...walletData } = newWallet;
+
+  //   return {
+  //     message: `${currency} Wallet created`,
+  //     data: walletData,
+  //   };
+  // }
+
   async createVirtualAccountForCurrency(
     userId: string,
     graphPersonId: string,
     currency: Currency,
   ) {
-    // Check if NGN wallet already exists for this user
+    // 1. Check existing wallet
     const existingWallet = await this.getOne({
       userId,
-      currency: currency,
+      currency,
     });
 
     if (existingWallet) {
@@ -181,17 +230,26 @@ export class WalletService {
       };
     }
 
-    // Generate Graph NGN account
+    // 2. External Graph API call
     const graphResponse = await this.graphService.createVirtualAccount(
       graphPersonId,
       currency,
     );
 
-    // Create wallet in database
-    const newWallet = await this.prisma.wallet.create({
+    // 3. Persist wallet
+    return this.createWalletFromGraphResponse(userId, currency, graphResponse);
+  }
+
+  async createWalletFromGraphResponse(
+    userId: string,
+    currency: Currency,
+    graphResponse: any,
+    tx: Prisma.TransactionClient = this.prisma,
+  ) {
+    const newWallet = await tx.wallet.create({
       data: {
-        userId: userId,
-        currency: currency,
+        userId,
+        currency,
         accountType: WalletType.INDIVIDUAL,
         holderId: graphResponse.holder_id,
         holderType: graphResponse.holder_type,
@@ -333,7 +391,9 @@ export class WalletService {
     userId: string,
     payload: InternalPayoutDestinationDto,
   ) {
-    const receiver = await this.usersService.getOne({ userTag: payload.tag });
+    const receiver = await this.usersService.getOne({
+      where: { userTag: payload.tag },
+    });
     if (!receiver) throw new NotFoundException('Recipient tag not found');
 
     const destinationWallet = await this.getOne({
@@ -349,6 +409,7 @@ export class WalletService {
       true,
     );
   }
+
   // 1b. THE CORE WORKER FOR USER TAG PAYMENT
   private async processUserTagTransfer(
     userId: string,
@@ -525,17 +586,22 @@ export class WalletService {
         response,
         debitTxId: senderTx.id,
       };
-    } catch (error) {
-      this.logger.error('TRANSFER_WORKER_CRASH', error);
+    } catch (error: unknown) {
+      this.logger.error(
+        `TRANSFER_WORKER_CRASH: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
 
-      if (error.code?.startsWith('P')) {
-        throw new InternalServerErrorException(
-          `Database Error: ${error.code}. Check provider for reference ${reference}`,
-        );
-      }
+      const statusCode = axios.isAxiosError(error)
+        ? error.response?.status
+        : error instanceof Error && 'status' in error
+          ? (error as Error & { status?: number }).status
+          : undefined;
 
-      const statusCode = error.status || error.response?.status;
-      const isDefinitive = statusCode >= 400 && statusCode < 500;
+      const isDefinitive =
+        typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500;
+
       if (isDefinitive && statusCode !== 408) {
         await this.executeFullReversal(
           senderTx,
@@ -548,11 +614,18 @@ export class WalletService {
           receiverTx,
           receiverPayment,
         );
-        const remoteMessage = error.message || 'Payout failed';
+
+        const remoteMessage = axios.isAxiosError(error)
+          ? error.response?.data?.message || error.message || 'Payout failed'
+          : error instanceof Error
+            ? error.message
+            : 'Payout failed';
+
         throw new BadRequestException(
           `${remoteMessage}. Funds have been reversed.`,
         );
       }
+
       throw new RequestTimeoutException(
         'Processing with bank. Please check history shortly.',
       );
@@ -886,9 +959,17 @@ export class WalletService {
         response,
         debitTxId: senderTx.id,
       };
-    } catch (error) {
+    } catch (error: unknown) {
+      const statusCode = axios.isAxiosError(error)
+        ? error.response?.status
+        : undefined;
+
       const isDefinitive =
-        error.response?.status >= 400 && error.response?.status < 500;
+        typeof statusCode === 'number' &&
+        statusCode >= 400 &&
+        statusCode < 500 &&
+        statusCode !== 408;
+
       if (isDefinitive) {
         await this.executeFullReversal(
           senderTx,
@@ -899,8 +980,10 @@ export class WalletService {
           creditAmount,
           reference,
         );
+
         throw new BadRequestException('Payout failed and funds returned');
       }
+
       throw new RequestTimeoutException(
         'Processing with bank. Please check history shortly.',
       );

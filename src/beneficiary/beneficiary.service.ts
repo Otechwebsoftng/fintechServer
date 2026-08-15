@@ -101,19 +101,19 @@ export class BeneficiaryService {
   }
 
   async createBeneficiary(userId: string, payload: CreateBeneficiaryDto) {
-
-    const user = await this.usersService.getOne({
-      id: userId,
-    });
+    const [user, existingBeneficiary] = await Promise.all([
+      this.usersService.getOne({
+        where: { id: userId },
+      }),
+      this.getOne({
+        userId: userId,
+        accountNumber: payload.accountNumber,
+      }),
+    ]);
 
     if (!user) {
       throw new Error('User not found');
     }
-
-    const existingBeneficiary = await this.getOne({
-      userId: user.id,
-      accountNumber: payload.accountNumber,
-    });
 
     if (existingBeneficiary) {
       throw new ConflictException('Already added this beneficiary');

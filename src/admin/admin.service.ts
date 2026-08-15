@@ -2,19 +2,20 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { UsersService } from 'src/users/users.service';
 import { Utility } from 'src/helpers/utilities.service';
 import * as bcrypt from 'bcrypt';
-import { AccountStatus, UserType } from '@prisma/client';
+import { AccountStatus, Prisma, UserType } from '@prisma/client';
 import { MailService } from 'src/mail/mail.service';
 import { RoleService } from 'src/role/role.service';
 import { CustomLogger } from 'src/custom.logger';
 import { CreateAdminDto } from './dto/createAdmin.dto';
 import { UpdateAdminRoleDto } from './dto/updateAdminRole.dto';
-
+const SALT_ROUND = 10;
 @Injectable()
 export class AdminService {
   constructor(
@@ -186,8 +187,10 @@ export class AdminService {
 
   async viewOne(adminId: string) {
     const admin = await this.usersService.getOne({
-      id: adminId,
-      userType: UserType.ADMIN,
+      where: {
+        id: adminId,
+        userType: UserType.ADMIN,
+      },
     });
     if (!admin) {
       throw new NotFoundException('Admin not found!');
@@ -197,8 +200,10 @@ export class AdminService {
 
   async create(adminId: string, payload: CreateAdminDto) {
     const [creator, existingAdminByEmail, role] = await Promise.all([
-      this.usersService.getOne({ id: adminId, userType: UserType.ADMIN }),
-      this.usersService.getOne({ email: payload.email }),
+      this.usersService.getOne({
+        where: { id: adminId, userType: UserType.ADMIN },
+      }),
+      this.usersService.getOne({ where: { email: payload.email } }),
       this.roleService.getOne({ id: payload.roleId }),
     ]);
 
@@ -212,7 +217,7 @@ export class AdminService {
 
     const generatePassword = Utility.randomPassword();
 
-    const hashPassword = await bcrypt.hash(generatePassword, 10);
+    const hashPassword = await bcrypt.hash(generatePassword, SALT_ROUND);
 
     if (existingAdminByEmail) {
       throw new ConflictException('Admin already exists');
@@ -243,17 +248,12 @@ export class AdminService {
       },
     });
 
-    try {
-      await this.mailService.adminWelcome(
-        adminDetails.email,
-        adminDetails.firstName,
-        role.name,
-        generatePassword,
-      );
-    } catch (error) {
-      this.logger.log(error);
-      throw new BadRequestException('Failed to Email.');
-    }
+    void this.mailService.adminWelcome(
+      adminDetails.email,
+      adminDetails.firstName,
+      role.name,
+      generatePassword,
+    );
 
     return {
       message: 'Admin created successfully!',
@@ -266,101 +266,115 @@ export class AdminService {
     userId: string,
     payload: UpdateAdminRoleDto,
   ) {
-    const user = await this.usersService.getOne({
-      id: userId,
-      userType: UserType.ADMIN,
-    });
-    if (!user) {
-      throw new NotFoundException('Admin not found!');
-    }
+    try {
+      const role = await this.roleService.getOne({ id: payload.roleId });
+      if (!role) {
+        throw new NotFoundException('Role not found!');
+      }
 
-    const role = await this.roleService.getOne({ id: payload.roleId });
-    if (!role) {
-      throw new NotFoundException('Role not found!');
-    }
-
-    const updatedAdminRole = await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        role: {
-          connect: {
-            id: role.id,
+      const updatedAdminRole = await this.prisma.user.update({
+        where: { id: userId, userType: UserType.ADMIN },
+        data: {
+          role: {
+            connect: {
+              id: role.id,
+            },
           },
-        },
 
-        lastUpdatedBy: {
-          connect: {
-            id: adminId,
+          lastUpdatedBy: {
+            connect: {
+              id: adminId,
+            },
           },
+          updatedAt: new Date(),
         },
-        updatedAt: new Date(),
-      },
-    });
+      });
 
-    const withoutPassword = this.sanitizeUser(updatedAdminRole);
+      const withoutPassword = this.sanitizeUser(updatedAdminRole);
 
-    return {
-      message: 'Admin role changed',
-      updatedAdminRole: withoutPassword,
-    };
+      return {
+        message: 'Admin role changed',
+        updatedAdminRole: withoutPassword,
+      };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        switch (error.code) {
+          case 'P2025':
+            throw new NotFoundException('Admin or role not found');
+        }
+      }
+      this.logger.error(`Failed to update admin role for user ${userId}`);
+
+      throw new InternalServerErrorException('Failed to update admin role.');
+    }
   }
 
   async softDelete(adminId: string, id: string) {
-    const admin = await this.usersService.getOne({
-      id: id,
-      isDeleted: false,
-      userType: UserType.ADMIN,
-    });
+    try {
+      await this.prisma.user.update({
+        where: {
+          id: id,
+          isDeleted: false,
+          userType: UserType.ADMIN,
+        },
+        data: {
+          status: AccountStatus.INACTIVE,
+          isDeleted: true,
+          updatedAt: new Date(),
+          updaterId: adminId,
+        },
+      });
 
-    if (!admin) {
-      throw new NotFoundException('Admin not found!');
+      return {
+        message: 'Admin suspended successfully!',
+      };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        switch (error.code) {
+          case 'P2025':
+            throw new NotFoundException('Admin not found. or already deleted');
+        }
+      }
+
+      this.logger.error('Failed to permanently delete Admin');
+
+      throw new InternalServerErrorException('Failed to soft delete a admin.');
     }
-
-    await this.prisma.user.update({
-      where: {
-        id: id,
-        userType: UserType.ADMIN,
-      },
-      data: {
-        status: AccountStatus.INACTIVE,
-        isDeleted: true,
-        updatedAt: new Date(),
-        updaterId: adminId,
-      },
-    });
-
-    return {
-      message: 'Admin suspended successfully!',
-    };
   }
 
   async restore(adminId: string, id: string) {
-    const admin = await this.usersService.getOne({
-      id: id,
-      isDeleted: true,
-      userType: UserType.ADMIN,
-    });
+    try {
+      await this.prisma.user.update({
+        where: {
+          id: id,
+          isDeleted: false,
+          userType: UserType.ADMIN,
+        },
+        data: {
+          isDeleted: false,
+          status: AccountStatus.ACTIVE,
+          updatedAt: new Date(),
+          updaterId: adminId,
+        },
+      });
 
-    if (!admin) {
-      throw new NotFoundException('Admin not found!');
+      return {
+        message: 'Admin restored successfully!',
+      };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        switch (error.code) {
+          case 'P2025':
+            throw new NotFoundException('Admin not found. or already deleted');
+        }
+      }
+
+      this.logger.error('Failed to restore deleted Admin');
+
+      throw new InternalServerErrorException(
+        'Failed to restore deleted a admin.',
+      );
     }
-
-    await this.prisma.user.update({
-      where: {
-        id: id,
-        userType: UserType.ADMIN,
-      },
-      data: {
-        isDeleted: false,
-        status: AccountStatus.ACTIVE,
-        updatedAt: new Date(),
-        updaterId: adminId,
-      },
-    });
-
-    return {
-      message: 'Admin restored successfully!',
-    };
   }
 
   async dashboardStats() {

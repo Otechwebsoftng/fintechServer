@@ -87,7 +87,7 @@ model User {
   beneficiaries              Beneficiary[]
   taxAddress                 TaxAddress?
 
-  @@index([email, phoneNumber])
+  @@index([email, phoneNumber, userTag])
 }
 
 model TaxAddress {
@@ -182,31 +182,33 @@ model RefreshToken {
 }
 
 model Payment {
-  id                String              @id @default(uuid())
-  userId            String?
-  virtualAccountId  String?             @db.VarChar(100)
-  transactionId     String?
-  reference         String?
-  status            PaymentStatus       @default(PENDING)
-  currency          Currency            @default(NGN)
-  description       String?
-  amount            Float?              @default(0)
-  amountSettled     Float?              @default(0)
-  fee               Float?              @default(0)
-  type              String?             @db.VarChar(50) //Fiat, Crypto, etc.
-  paymentEntry      PaymentEntry?       @default(CREDIT)
-  paymentMethod     PaymentMethod       @default(BANK_TRANSFER)
-  ip_address        String?
-  paid_at           DateTime?
-  failed_at         DateTime?
-  failure_reason    String?
-  failure_code      String?
-  user              User?               @relation(fields: [userId], references: [id])
-  isDeleted         Boolean             @default(false)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime?
-  walletTransaction WalletTransaction[]
-  wallet            Wallet?             @relation(fields: [virtualAccountId], references: [virtualAccountId])
+  id                  String              @id @default(uuid())
+  userId              String?
+  virtualAccountId    String?             @db.VarChar(100)
+  transactionId       String?
+  reference           String?
+  status              PaymentStatus       @default(PENDING)
+  currency            Currency            @default(NGN)
+  description         String?
+  amount              Float?              @default(0)
+  amountSettled       Float?              @default(0)
+  fee                 Float?              @default(0)
+  transactionChargeId String?
+  transactionCharge   TransactionCharge?  @relation(fields: [transactionChargeId], references: [id])
+  type                String?             @db.VarChar(50) //Fiat, Crypto, etc.
+  paymentEntry        PaymentEntry?       @default(CREDIT)
+  paymentMethod       PaymentMethod       @default(BANK_TRANSFER)
+  ip_address          String?
+  paid_at             DateTime?
+  failed_at           DateTime?
+  failure_reason      String?
+  failure_code        String?
+  user                User?               @relation(fields: [userId], references: [id])
+  isDeleted           Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime?
+  walletTransaction   WalletTransaction[]
+  wallet              Wallet?             @relation(fields: [virtualAccountId], references: [virtualAccountId])
 
   @@index([userId, transactionId, virtualAccountId])
 }
@@ -243,6 +245,21 @@ model Wallet {
 
   @@unique([userId, accountNumber, currency], name: "user_currency_unique")
   @@index([userId, currency])
+}
+
+model TransactionCharge {
+  id          String     @id @default(uuid())
+  title       String     @db.VarChar(100)
+  description String?    @db.VarChar(256)
+  chargeType  ChargeType @default(deposit)
+  percentage  Decimal?   @default(0) @db.Decimal(5, 2)
+  fixedAmount Decimal?   @default(0) @db.Decimal(12, 2)
+  currency    Currency
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  payments    Payment[]
+
+  @@index([chargeType, currency])
 }
 
 model WalletTransaction {
@@ -444,4 +461,13 @@ enum PayOutType {
   nip
   mobile_money
   wire
+}
+
+enum ChargeType {
+  deposit
+  payout
+  maintenance
+  account_issuance
+  compliance
+  chargeBack_fraud_wire_recall
 }

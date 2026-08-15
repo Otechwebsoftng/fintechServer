@@ -3,7 +3,6 @@ import { v4 as uuid } from 'uuid';
 import * as crypto from 'crypto';
 import { v2 as cloudinary } from 'cloudinary';
 import { BadRequestException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 
 export interface CloudinaryUploadResponse {
   public_id: string;
@@ -139,39 +138,41 @@ export class Utility {
     folder: string,
   ): Promise<CloudinaryUploadResponse> {
     this.ensureCloudinaryConfig();
-
-    return new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: `${folder}` },
-        (error, result) => {
-          if (error) {
-            return reject(
-              new BadRequestException('Failed to upload image to cloudinary'),
-            );
-          } else if (result) {
-            const response: CloudinaryUploadResponse = {
-              public_id: result.public_id,
-              url: result.url,
-              secure_url: result.secure_url,
-            };
-            resolve(response);
-          } else {
-            reject(
-              new BadRequestException('No result returned from cloudinary'),
-            );
-          }
-        },
-      );
-      // Ensure file.buffer is passed
-      if (file && file.buffer) {
-        uploadStream.end(file.buffer);
-      } else {
-        reject(new BadRequestException('Invalid file buffer'));
+    try {
+      return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: `${folder}` },
+          (error, result) => {
+            if (error) {
+              return reject(
+                new BadRequestException('Failed to upload image to cloudinary'),
+              );
+            } else if (result) {
+              const response: CloudinaryUploadResponse = {
+                public_id: result.public_id,
+                url: result.url,
+                secure_url: result.secure_url,
+              };
+              resolve(response);
+            } else {
+              reject(
+                new BadRequestException('No result returned from cloudinary'),
+              );
+            }
+          },
+        );
+        // Ensure file.buffer is passed
+        if (file && file.buffer) {
+          uploadStream.end(file.buffer);
+        } else {
+          reject(new BadRequestException('Invalid file buffer'));
+        }
+      });
+    } catch (error) {
+      if (error) {
+        throw new BadRequestException(`Failed to upload file. Try again later`);
       }
-    });
-
-    // const imageUrl = result.secure_url;
-    // const publicId = result.public_id;
+    }
   }
 
   static async destroy(publicId: string): Promise<CloudinaryUploadResponse> {
@@ -181,7 +182,9 @@ export class Utility {
       const result = await cloudinary.uploader.destroy(publicId);
       return result;
     } catch (error) {
-      throw new Error(`Cloudinary Deletion Error: ${error.message}`);
+      if (error) {
+        throw new BadRequestException(`Cloudinary Deletion Error`);
+      }
     }
   }
 }

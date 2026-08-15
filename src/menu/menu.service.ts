@@ -16,7 +16,24 @@ export class MenuService {
   ) {}
 
   async getUserMenu(userId: string) {
-    const userRole = await this.usersService.getOne({ id: userId });
+    const userRole = await this.usersService.getOne({
+      where: { id: userId },
+      include: {
+        role: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            permissions: {
+              select: {
+                permissionId: true,
+                permission: true,
+              },
+            },
+          },
+        },
+      },
+    });
 
     if (!userRole || !userRole.role) {
       return [];

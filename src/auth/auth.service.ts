@@ -1,6 +1,8 @@
 import {
   BadRequestException,
+  HttpException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -12,12 +14,10 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { MailService } from 'src/mail/mail.service';
 import { CustomLogger } from 'src/custom.logger';
 import { AccountStatus, OtpType, User, UserType } from '@prisma/client';
-// import { use } from 'passport';
 import APIFeatures from 'src/utils/apiFeatures.utils';
 import { ActivateAccountDto } from 'src/users/dto/activateAccount.dto';
 import { Utility } from 'src/helpers/utilities.service';
 import { ConfigService } from '@nestjs/config';
-// import { config } from 'process';
 const PASSWORD_SALT = 10;
 @Injectable()
 export class AuthService {
@@ -32,8 +32,7 @@ export class AuthService {
 
   async login(payload: LoginDto) {
     const user = await this.usersService.getOne({
-      email: payload.email,
-      userType: UserType.USER,
+      where: { email: payload.email, userType: UserType.USER },
     });
 
     if (!user) throw new UnauthorizedException('Invalid email or password');
@@ -62,8 +61,22 @@ export class AuthService {
 
   async adminLogin(loginDto: LoginDto) {
     const user = await this.usersService.getOne({
-      email: loginDto.email,
-      userType: UserType.ADMIN,
+      where: { email: loginDto.email, userType: UserType.ADMIN },
+      include: {
+        role: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            permissions: {
+              select: {
+                permissionId: true,
+                permission: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!user) throw new NotFoundException('Invalid email or Password!');
@@ -84,7 +97,6 @@ export class AuthService {
     }
 
     const token = await APIFeatures.assignJwtToken(user, this.jwtService);
-    // const { password: _, ...userWithoutPassword } = user;
 
     const result = {
       id: user.id,
@@ -111,59 +123,59 @@ export class AuthService {
       },
     });
 
-    try {
-      await this.mailService.sendOtp(
-        user.email,
-        user.firstName ?? '',
-        otp.token,
-      );
-    } catch (emailError) {
-      this.logger.error(
-        `Failed to send Otp email to ${user.email}  to gain admin access`,
-        emailError,
-      );
-    }
+    void this.mailService.sendOtp(user.email, user.firstName ?? '', otp.token);
 
     return { token, data: result };
   }
 
   async verifyAdmin(user: User, activateAccountDto: ActivateAccountDto) {
-    if (activateAccountDto.otpType !== OtpType.ADMIN_LOGIN) {
-      throw new BadRequestException('Invalid Otp Type');
-    }
-    const { otp } = activateAccountDto;
-    const decryptOtp = await bcrypt.compare(activateAccountDto.otp, user.otp);
+    try {
+      if (activateAccountDto.otpType !== OtpType.ADMIN_LOGIN) {
+        throw new BadRequestException('Invalid OTP type');
+      }
 
-    if (!decryptOtp) {
-      throw new BadRequestException('Expired or incorrect "OTP"');
-    }
-    const currentTime = new Date();
-    const findUser = await this.prisma.user.findFirst({
-      where: {
-        id: user.id,
-        otp: otp,
-        otpExpiresIn: {
-          gte: new Date(currentTime.getTime()),
+      if (!user.otp || !user.otpExpiresIn) {
+        throw new BadRequestException('Expired or incorrect "OTP"');
+      }
+
+      const isValidOtp = await bcrypt.compare(activateAccountDto.otp, user.otp);
+
+      const isExpired = new Date() > new Date(user.otpExpiresIn);
+
+      if (!isValidOtp || isExpired) {
+        throw new BadRequestException('Expired or incorrect "OTP"');
+      }
+
+      const updatedUser = await this.prisma.user.update({
+        where: {
+          id: user.id,
         },
-      },
-    });
+        data: {
+          otp: null,
+          otpExpiresIn: null,
+          status: AccountStatus.ACTIVE,
+          isEmailVerified: true,
+        },
+      });
 
-    if (!findUser) {
-      throw new BadRequestException('Expired or incorrect "OTP"');
+      const token = await APIFeatures.assignJwtToken(
+        updatedUser,
+        this.jwtService,
+      );
+
+      return {
+        token,
+        user: this.sanitizeUser(updatedUser),
+      };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      this.logger.error(`Failed to verify admin ${user.id}`);
+
+      throw new InternalServerErrorException('Failed to verify admin');
     }
-
-    const updatedUser = await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        otp: null,
-        otpExpiresIn: null,
-        status: AccountStatus.ACTIVE,
-        isEmailVerified: true,
-      },
-    });
-
-    const token = await APIFeatures.assignJwtToken(user, this.jwtService);
-    return { token, user: this.sanitizeUser(updatedUser) };
   }
 
   async getUserAuthData(user: any) {
@@ -217,7 +229,7 @@ export class AuthService {
     }
 
     const user = await this.usersService.getOne({
-      id: token.userId,
+      where: { id: token.userId },
     });
 
     if (!user) throw new NotFoundException('User not found');

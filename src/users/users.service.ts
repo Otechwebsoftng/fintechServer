@@ -4,6 +4,7 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -11,6 +12,7 @@ import {
   AccountStatus,
   KycLevel,
   OtpType,
+  Prisma,
   User,
   UserType,
 } from '@prisma/client';
@@ -25,7 +27,6 @@ import * as bcrypt from 'bcrypt';
 import { SignUpDto } from './dto/signup.dto';
 import { TransactionPinDto } from './dto/transactionPin.dto';
 import { WalletService } from 'src/wallet/wallet.service';
-import { AirwallexService } from 'src/vendors/airwallex.service';
 import { UserTagDto } from './dto/userTag.dto';
 const PASSWORD_SALT = 10;
 
@@ -38,7 +39,6 @@ export class UsersService {
     @Inject(forwardRef(() => WalletService))
     private readonly walletService: WalletService,
     private readonly logger: CustomLogger,
-    private readonly airwallexService: AirwallexService,
   ) {}
 
   async getAll(
@@ -65,13 +65,11 @@ export class UsersService {
     if (status) {
       const statusArray = status.split(',').map((s) => s.trim().toUpperCase());
 
-      // Filter out any invalid statuses
       const validStatuses = statusArray.filter((s) =>
         Object.values(AccountStatus).includes(s as AccountStatus),
       );
 
       if (validStatuses.length > 0) {
-        // Use the 'in' operator to filter by multiple statuses
         whereClause.status = { in: validStatuses as AccountStatus[] };
       }
     }
@@ -134,7 +132,6 @@ export class UsersService {
     const hasPrevious = shouldPaginate ? page > 1 : false;
 
     const usersWithoutPassword = users.map((user) => {
-      /* eslint-disable @typescript-eslint/no-unused-vars */
       const {
         password,
         transactionPin,
@@ -143,7 +140,6 @@ export class UsersService {
         otp,
         ...userWithoutPassword
       } = user;
-      /* eslint-enable @typescript-eslint/no-unused-vars */
       return userWithoutPassword;
     });
 
@@ -159,49 +155,57 @@ export class UsersService {
     };
   }
 
-  async getOne(criteria: any) {
-    return await this.prisma.user.findFirst({
-      where: { ...criteria },
-      include: {
-        role: {
-          select: {
-            id: true,
-            name: true,
-            permissions: true,
-          },
-        },
-        taxAddress: {
-          select: {
-            id: true,
-            country: true,
-            state: true,
-            city: true,
-            street: true,
-            houseNo: true,
-            zipCode: true,
-            nationality: true,
-            taxCountry: true,
-            taxNumber: true,
-            isTaxAddressCompleted: true,
-          },
-        },
-        wallets: {
-          select: {
-            id: true,
-            virtualAccountId: true,
-            userId: true,
-            currency: true,
-            bankName: true,
-            accountNumber: true,
-            bankCode: true,
-          },
-        },
-      },
-    });
+  async getOne<T extends Prisma.UserFindFirstArgs>(
+    args: Prisma.SelectSubset<T, Prisma.UserFindFirstArgs>,
+    tx?: Prisma.TransactionClient,
+  ): Promise<Prisma.UserGetPayload<T> | null> {
+    const db = tx ?? this.prisma;
+    return db.user.findFirst(args);
   }
 
+  // async getOne(criteria: Prisma.fi) {
+  //   return await this.prisma.user.findFirst({
+  //     where: { ...criteria },
+  //     include: {
+  //       role: {
+  //         select: {
+  //           id: true,
+  //           name: true,
+  //           permissions: true,
+  //         },
+  //       },
+  //       taxAddress: {
+  //         select: {
+  //           id: true,
+  //           country: true,
+  //           state: true,
+  //           city: true,
+  //           street: true,
+  //           houseNo: true,
+  //           zipCode: true,
+  //           nationality: true,
+  //           taxCountry: true,
+  //           taxNumber: true,
+  //           isTaxAddressCompleted: true,
+  //         },
+  //       },
+  //       wallets: {
+  //         select: {
+  //           id: true,
+  //           virtualAccountId: true,
+  //           userId: true,
+  //           currency: true,
+  //           bankName: true,
+  //           accountNumber: true,
+  //           bankCode: true,
+  //         },
+  //       },
+  //     },
+  //   });
+  // }
+
   async viewOne(userId: string) {
-    const user = await this.getOne({ id: userId });
+    const user = await this.getOne({ where: { id: userId } });
 
     if (!user) {
       return new NotFoundException('User not found');
@@ -215,8 +219,8 @@ export class UsersService {
     const { email, phoneNumber } = payload;
 
     const [emailExist, phoneExist] = await Promise.all([
-      this.getOne({ email }),
-      this.getOne({ phoneNumber: phoneNumber }),
+      this.getOne({ where: { email } }),
+      this.getOne({ where: { phoneNumber: phoneNumber } }),
     ]);
 
     if (emailExist) {
@@ -227,41 +231,26 @@ export class UsersService {
     }
 
     const salt = PASSWORD_SALT;
-    const hashPassword = await bcrypt.hash(payload.password, salt);
-
     const otp = await APIFeatures.generateOtp();
 
-    const hashOtp = await bcrypt.hash(otp.token.toString(), salt);
+    const [hashPassword, hashOtp] = await Promise.all([
+      bcrypt.hash(payload.password, salt),
+      bcrypt.hash(otp.token.toString(), salt),
+    ]);
 
-    const newUser = await this.prisma.$transaction(async (tx) => {
-      // Create user
-      const user = await tx.user.create({
-        data: {
-          ...payload,
-          password: hashPassword,
-          otp: hashOtp,
-          otpExpiresIn: otp.otpExpires,
-          userType: payload.userType || UserType.USER,
-          otpType: OtpType.SIGN_UP,
-        },
-      });
-      return user;
+    const newUser = await this.prisma.user.create({
+      data: {
+        ...payload,
+        password: hashPassword,
+        otp: hashOtp,
+        otpExpiresIn: otp.otpExpires,
+        userType: payload.userType || UserType.USER,
+        otpType: OtpType.SIGN_UP,
+      },
     });
 
-    try {
-      await this.mailService.welcomeMail(
-        newUser.email,
-        newUser.firstName ?? '',
-        otp.token,
-      );
-    } catch (err) {
-      // Log but don't throw - user is already created successfully
-      this.logger.error('Welcome email failed to send', err);
-    }
-
-    // this.airwallexService.authenticate();
-
     const token = await APIFeatures.assignJwtToken(newUser, this.jwtService);
+
     const result = {
       id: newUser.id,
       email: newUser.email,
@@ -271,6 +260,12 @@ export class UsersService {
       isEmailVerified: newUser.isEmailVerified,
     };
 
+    void this.mailService.welcomeMail(
+      newUser.email,
+      newUser.firstName ?? '',
+      otp.token,
+    );
+
     return {
       token,
       data: result,
@@ -278,7 +273,8 @@ export class UsersService {
   }
 
   async createUserTag(userId: string, payload: UserTagDto) {
-    const sanitizedTag = '@' + payload.userTag.toLowerCase().trim();
+    const sanitizedTag =
+      '@' + payload.userTag.toLowerCase().trim().replace(/\s+/g, '_');
 
     try {
       const updateUserTag = await this.prisma.user.update({
@@ -293,9 +289,21 @@ export class UsersService {
         data: updateUserTag.userTag,
       };
     } catch (error) {
-      if (error.code === 'P2002' && error.meta?.target?.includes('userTag')) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002' &&
+        Array.isArray(error.meta?.target) &&
+        error.meta.target.includes('userTag')
+      ) {
         throw new ConflictException('User tag already in use');
       }
+
+      this.logger.error(
+        `Failed to create user tag for user ${userId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+
+      throw new InternalServerErrorException('Failed to create user tag');
     }
   }
 
@@ -316,8 +324,7 @@ export class UsersService {
     if (user.otp === null) {
       throw new BadRequestException('Resend OTP to activate your account');
     }
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { otp, otpType } = payload;
+    const { otpType } = payload;
 
     if (otpType !== OtpType.SIGN_UP) {
       throw new BadRequestException('Invalid OTP type for account activation');
@@ -327,37 +334,48 @@ export class UsersService {
 
     const decryptOtp = await bcrypt.compare(payload?.otp, user.otp);
 
-    if (!decryptOtp) {
-      throw new BadRequestException('Expired or incorrect "OTP"');
+    if (decryptOtp === !!false) {
+      throw new BadRequestException('Invalid Otp, try again');
     }
+    try {
+      const update = await this.prisma.user.update({
+        where: {
+          id: user.id,
+          otpType: OtpType.SIGN_UP,
+          otpExpiresIn: { gte: new Date(currentTime.getTime()) },
+          status: AccountStatus.INACTIVE,
+        },
+        data: {
+          otp: null,
+          otpExpiresIn: null,
+          otpType: null,
+          status: AccountStatus.ACTIVE,
+          isEmailVerified: true,
+        },
+      });
 
-    const update = await this.prisma.user.update({
-      where: {
-        id: user.id,
-        otpType: OtpType.SIGN_UP,
-        otpExpiresIn: { gte: new Date(currentTime.getTime()) },
-        status: AccountStatus.INACTIVE,
-      },
-      data: {
-        otp: null,
-        otpExpiresIn: null,
-        otpType: null,
-        status: AccountStatus.ACTIVE,
-        isEmailVerified: true,
-      },
-    });
+      const result = {
+        id: update.id,
+        email: update.email,
+        firstName: update.firstName,
+        lastName: update.lastName,
+        phoneNumber: update.phoneNumber,
+        isEmailVerified: update.isEmailVerified,
+      };
 
-    const result = {
-      id: update.id,
-      email: update.email,
-      firstName: update.firstName,
-      lastName: update.lastName,
-      phoneNumber: update.phoneNumber,
-      isEmailVerified: update.isEmailVerified,
-    };
-
-    const token = await APIFeatures.assignJwtToken(result, this.jwtService);
-    return { token, data: result };
+      const token = await APIFeatures.assignJwtToken(result, this.jwtService);
+      return { token, data: result };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        this.logger.error(`${error}`);
+        throw new BadRequestException(
+          'Account is already activated or activation is no longer valid',
+        );
+      }
+    }
   }
 
   async resendOTP(user) {
@@ -392,8 +410,7 @@ export class UsersService {
 
   async sendPasswordOtp(payload: SendPasswordOtpDto) {
     const user = await this.getOne({
-      email: payload.email,
-      status: 'ACTIVE',
+      where: { email: payload.email, status: 'ACTIVE' },
     });
 
     if (!user) {
@@ -443,13 +460,15 @@ export class UsersService {
   }
 
   async passwordOtpVerify(payload: ActivateAccountDto) {
-    // const currentTime = new Date();
+    const currentTime = new Date();
 
     const hashOtp = await bcrypt.hash(payload.otp, PASSWORD_SALT);
 
     const user = await this.getOne({
-      otp: hashOtp,
-      // otpExpiresIn: { gte: new Date(currentTime.getTime()) },
+      where: {
+        otp: hashOtp,
+        otpExpiresIn: { gte: new Date(currentTime.getTime()) },
+      },
     });
 
     if (!user) {
@@ -466,7 +485,7 @@ export class UsersService {
   }
 
   async softDelete(userId: string) {
-    const user = await this.getOne({ id: userId, isDeleted: false });
+    const user = await this.getOne({ where: { id: userId, isDeleted: false } });
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -490,8 +509,7 @@ export class UsersService {
     const currentTime = new Date();
 
     const user = await this.getOne({
-      email,
-      otpType: OtpType.FORGOT_PASSWORD,
+      where: { email, otpType: OtpType.FORGOT_PASSWORD },
     });
 
     if (!user) {

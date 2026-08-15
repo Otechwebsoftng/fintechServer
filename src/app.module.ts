@@ -17,6 +17,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PaymentModule } from './payment/payment.module';
+import { TransactionChargeModule } from './transaction-charge/transaction-charge.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { PaymentModule } from './payment/payment.module';
     BeneficiaryModule,
     WebhooksModule,
     PaymentModule,
+    TransactionChargeModule,
   ],
   controllers: [AppController],
   providers: [

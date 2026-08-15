@@ -61,7 +61,6 @@ export class AirwallexService {
         },
       });
 
-      console.log('Airwallex authentication response:', response);
 
       this.accessToken = response.data.token;
       this.tokenExpiry = new Date(response.data.expires_at);
@@ -111,9 +110,11 @@ export class AirwallexService {
   async verifyPayment(paymentIntentId: string) {
     try {
       const token = await this.authenticate();
-      
+
       if (!token) {
-        throw new Error('Airwallex authentication failed. Please check credentials.');
+        throw new Error(
+          'Airwallex authentication failed. Please check credentials.',
+        );
       }
 
       const response = await axios.get(
@@ -139,8 +140,13 @@ export class AirwallexService {
         data: response.data,
       };
     } catch (error) {
-      this.logger.error(`Payment verification failed for ${paymentIntentId}`, error.response?.data);
-      throw new Error(`Failed to verify payment: ${error.response?.data?.message || error.message}`);
+      this.logger.error(
+        `Payment verification failed for ${paymentIntentId}`,
+        error.response?.data,
+      );
+      throw new Error(
+        `Failed to verify payment: ${error.response?.data?.message || error.message}`,
+      );
     }
   }
 }
