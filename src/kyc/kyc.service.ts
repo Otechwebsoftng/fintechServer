@@ -659,11 +659,13 @@ export class KycService {
         Currency.EUR,
       ),
 
-      this.cryptoService.createCryptoAddress({
-        uniqueUserIdentifier: userId,
-        currency: 'USDT',
-        network: 'TRX',
-      }),
+      this.cryptoService.createCryptoAddress([
+        {
+          uniqueUserIdentifier: userId,
+          currency: 'USDT',
+          network: 'TRX',
+        },
+      ]),
       // this.cryptoService.createCryptoAddress({
       //   uniqueUserIdentifier: userId,
       //   currency: 'BTC',

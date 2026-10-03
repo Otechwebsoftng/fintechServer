@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { CustomLogger } from 'src/custom.logger';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ObiexService } from 'src/vendors/obiex.finance';
-import { CryptoAddressDto } from './dto/create.address.dto';
+import { CreateCryptoAddressDto } from './dto/create.crypto.address.dto';
 
 @Injectable()
 export class CryptoService {
@@ -34,45 +34,64 @@ export class CryptoService {
     };
   }
 
-  async createCryptoAddress(payload: CryptoAddressDto): Promise<any> {
-    console.log(
-      'Creating crypto address with payload from the service:',
-      payload,
-    );
-    // 1. check if userAlready has an address for the currency and network
-    const addressExists = await this.getOne({
-      where: {
-        userId: payload.uniqueUserIdentifier,
-        currency: payload.currency,
-        network: payload.network,
-      },
-    });
-
-    console.log('Address exists:', addressExists);
-
-    if (addressExists) {
+  async createCryptoAddress(payload: CreateCryptoAddressDto[]): Promise<any> {
+    if (!payload.length) {
       return {
-        message: `${payload.currency} address already exists`,
-        data: addressExists,
+        message: 'No addresses provided in the payload',
+        data: [],
       };
     }
+    const results = await Promise.all(
+      payload.map(async (address) => {
+        const existingAddress = await this.getOne({
+          where: {
+            userId: address.uniqueUserIdentifier,
+            currency: address.currency,
+            network: address.network,
+          },
+        });
 
-    const obiexData = await this.obiexService.createDepositAddress({
-      currency: payload.currency,
-      network: payload.network,
-      uniqueUserIdentifier: payload.uniqueUserIdentifier,
-    });
+        // Address already exists
+        if (existingAddress) {
+          return {
+            currency: address.currency,
+            network: address.network,
+            walletAddress: existingAddress.walletAddress,
+            status: 'EXISTS',
+          };
+        }
 
-    console.log('Obiex data received:', obiexData);
+        // Create address with Obiex
+        const obiexData = await this.obiexService.createDepositAddress({
+          currency: address.currency,
+          network: address.network,
+          uniqueUserIdentifier: address.uniqueUserIdentifier,
+        });
 
-    return this.prisma.cryptoAddress.create({
-      data: {
-        userId: payload.uniqueUserIdentifier,
-        walletAddress: obiexData.data.value,
-        active: obiexData.data.active,
-        currency: payload.currency,
-        network: payload.network,
-      },
-    });
+        const createdAddress = await this.prisma.cryptoAddress.create({
+          data: {
+            userId: address.uniqueUserIdentifier,
+            walletAddress: obiexData.data.value,
+            active: obiexData.data.active,
+            currency: address.currency,
+            network: address.network,
+          },
+        });
+
+        console.log('Obiex data received:', obiexData);
+
+        return {
+          currency: address.currency,
+          network: address.network,
+          walletAddress: createdAddress.walletAddress,
+          status: 'CREATED',
+        };
+      }),
+    );
+
+    return {
+      message: 'Crypto addresses processed successfully',
+      data: results,
+    };
   }
 }

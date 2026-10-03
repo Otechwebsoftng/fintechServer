@@ -305,6 +305,7 @@ model CryptoAddress {
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   cryptoPayments CryptoPayment[]
 
+  @@unique([userId, currency, network])
   @@index([walletAddress, userId])
 }
 
