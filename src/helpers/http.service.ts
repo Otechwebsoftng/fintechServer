@@ -49,7 +49,21 @@ export class APIRequest {
       const response = await axios.post(url, body, this.config);
       return response.data;
     } catch (err) {
-      throw this.handleError(err);
+      // throw this.handleError(err);
+      if (axios.isAxiosError(err)) {
+        console.error(
+          JSON.stringify(
+            {
+              status: err.response?.status,
+              data: err.response?.data,
+            },
+            null,
+            2,
+          ),
+        );
+      }
+
+      throw err;
     }
   }
 
@@ -64,7 +78,7 @@ export class APIRequest {
 
   handleError(err) {
     if (err.response) {
-      console.log(err)
+      console.log(err);
       // The server responded with a status code (4xx, 5xx)
       const statusCode = err.response.status;
       const message = err.response.data?.message || err.response.statusText;

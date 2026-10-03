@@ -1182,6 +1182,7 @@ export class WalletService {
       };
     }
   }
+
   private buildWirePayoutPayload(
     sourceWallet: any,
     destinationWallet: any | null,

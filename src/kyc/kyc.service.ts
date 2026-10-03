@@ -17,9 +17,10 @@ import { TaxAddressDto } from './dto/taxAddress.dto';
 import { DojahVerificationService } from 'src/vendors/dojah.verification';
 import { IdentityVerificationDto } from './dto/identityVerification.dto';
 import { UtilityVerificationDto } from './dto/utility.dto';
-import { FincraVerificationService } from 'src/vendors/fincra.verification-service';
 import { GraphService } from 'src/vendors/graph.service';
 import { WalletService } from 'src/wallet/wallet.service';
+import { CryptoService } from 'src/crypto/crypto.service';
+import { SmileIdVerificationService } from 'src/vendors/smileId.verification.service';
 
 @Injectable()
 export class KycService {
@@ -27,10 +28,11 @@ export class KycService {
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
     private readonly logger: CustomLogger,
-    private readonly fincraVerificationService: FincraVerificationService,
     private readonly dojahVerificationService: DojahVerificationService,
+    private readonly smileIdVerification: SmileIdVerificationService,
     private readonly graphService: GraphService,
     private readonly walletService: WalletService,
+    private readonly cryptoService: CryptoService,
   ) {}
 
   async checkUserKycStatus(userId: string) {
@@ -122,10 +124,30 @@ export class KycService {
       );
     }
 
+    const verificationUpdatePayload = {
+      country: 'NG',
+      id_type: payload.identityType,
+      id_number: payload.number,
+      user_details: {
+        given_names: user.firstName,
+        last_name: user.lastName,
+        email: user.email,
+        phone_number: `+234${user.phoneNumber}`,
+      },
+      consent: {
+        granted: payload.consent.granted,
+        granted_at: payload.consent.granted_at,
+        notice_language: payload.consent.notice_language,
+        notice_privacy_policy_url: payload.consent.notice_privacy_policy_url,
+      },
+    };
+
+    console.log(verificationUpdatePayload);
+
     // Call verification service to verify BVN
-    // const result = await this.dojahVerificationService.verifyBvn(
-    //   payload.number,
-    // );
+    const result = await this.smileIdVerification.verifyBvn(
+      verificationUpdatePayload,
+    );
 
     // if (result.status !== 'successful') {
     //   throw new BadRequestException('BVN verification failed');
@@ -512,29 +534,29 @@ export class KycService {
       );
     }
 
-    const formatDate = (input: string | Date): string | null => {
-      if (!input) return null;
+    // const formatDate = (input: string | Date): string | null => {
+    //   if (!input) return null;
 
-      if (input instanceof Date) {
-        const y = input.getFullYear();
-        const m = String(input.getMonth() + 1).padStart(2, '0');
-        const d = String(input.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-      }
+    //   if (input instanceof Date) {
+    //     const y = input.getFullYear();
+    //     const m = String(input.getMonth() + 1).padStart(2, '0');
+    //     const d = String(input.getDate()).padStart(2, '0');
+    //     return `${y}-${m}-${d}`;
+    //   }
 
-      const normalized = input.replace(/\//g, '-');
-      const [day, month, year] = normalized.split('-');
-      return `${year}-${month}-${day}`;
-    };
+    //   const normalized = input.replace(/\//g, '-');
+    //   const [day, month, year] = normalized.split('-');
+    //   return `${year}-${month}-${day}`;
+    // };
 
-    const mapIdType = (type: IdentityType): string => {
-      const map = {
-        [IdentityType.NIN]: 'national_id',
-        [IdentityType.DRIVER_LICENSE]: 'drivers_license',
-        [IdentityType.PASSPORT]: 'passport',
-      };
-      return map[type] ?? 'other';
-    };
+    // const mapIdType = (type: IdentityType): string => {
+    //   const map = {
+    //     [IdentityType.NIN]: 'national_id',
+    //     [IdentityType.DRIVER_LICENSE]: 'drivers_license',
+    //     [IdentityType.PASSPORT]: 'passport',
+    //   };
+    //   return map[type] ?? 'other';
+    // };
 
     const uploaded = await Utility.uploadImage(file, 'UtilityBills');
 
@@ -569,10 +591,10 @@ export class KycService {
       name_other: user.otherName,
       email: user.email,
       phone: user.phoneNumber,
-      dob: formatDate(user.dob),
+      dob: this.formatDate(user.dob),
       id_level:
         user.identityType === IdentityType.PASSPORT ? 'primary' : 'secondary',
-      id_type: mapIdType(user.identityType),
+      id_type: this.mapIdType(user.identityType),
       id_number: user.identityTypeNo,
       id_country: user.taxAddress?.country,
       bank_id_number: user.bvn,
@@ -587,7 +609,10 @@ export class KycService {
         postal_code: user.taxAddress?.zipCode,
       },
       documents: [
-        { type: mapIdType(user.identityType), url: user.identityTypeTier2Url },
+        {
+          type: this.mapIdType(user.identityType),
+          url: user.identityTypeTier2Url,
+        },
         { type: 'utility_bill', url: uploaded.url },
       ],
       background_information: {
@@ -606,7 +631,7 @@ export class KycService {
       await this.graphService.updatePerson(personId, {
         documents: [
           {
-            type: mapIdType(user.identityType),
+            type: this.mapIdType(user.identityType),
             url: user.identityTypeTier2Url,
           },
           { type: 'utility_bill', url: uploaded.url },
@@ -633,6 +658,22 @@ export class KycService {
         personId,
         Currency.EUR,
       ),
+
+      this.cryptoService.createCryptoAddress({
+        uniqueUserIdentifier: userId,
+        currency: 'USDT',
+        network: 'TRX',
+      }),
+      // this.cryptoService.createCryptoAddress({
+      //   uniqueUserIdentifier: userId,
+      //   currency: 'BTC',
+      //   network: 'BTC',
+      // }),
+      // this.cryptoService.createCryptoAddress({
+      //   uniqueUserIdentifier: userId,
+      //   currency: 'ETH',
+      //   network: 'ETH',
+      // }),
     ]);
 
     const summary = {
@@ -641,11 +682,17 @@ export class KycService {
     };
 
     if (summary.usd.status === 'rejected') {
-      this.logger.error('USD wallet creation failed', summary.usd.reason);
+      this.logger.error(
+        'USD wallet creation failed because it was rejected',
+        summary.usd.reason,
+      );
     }
 
     if (summary.eur.status === 'rejected') {
-      this.logger.error('EUR wallet creation failed', summary.eur.reason);
+      this.logger.error(
+        'EUR wallet creation failed because it was rejected',
+        summary.eur.reason,
+      );
     }
 
     if (
@@ -754,6 +801,7 @@ export class KycService {
       [IdentityType.NIN]: 'national_id',
       [IdentityType.DRIVER_LICENSE]: 'drivers_license',
       [IdentityType.PASSPORT]: 'passport',
+      [IdentityType.BVN]: 'bvn',
     };
     return map[type];
   }
@@ -769,6 +817,21 @@ export class KycService {
     });
 
     return person.id;
+  }
+
+  private formatDate(input: string | Date): string | null {
+    if (!input) return null;
+
+    if (input instanceof Date) {
+      const y = input.getFullYear();
+      const m = String(input.getMonth() + 1).padStart(2, '0');
+      const d = String(input.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    const normalized = input.replace(/\//g, '-');
+    const [day, month, year] = normalized.split('-');
+    return `${year}-${month}-${day}`;
   }
 
   sanitizeUser(user) {

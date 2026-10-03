@@ -86,6 +86,8 @@ model User {
   updatedUsers               User[]          @relation("UserLastUpdatedBy")
   beneficiaries              Beneficiary[]
   taxAddress                 TaxAddress?
+  cryptoAddresses            CryptoAddress[]
+  cryptoPayments             CryptoPayment[]
 
   @@index([email, phoneNumber, userTag])
 }
@@ -289,6 +291,72 @@ model WalletTransaction {
   @@index([walletId, reference, idempotencyKey, payoutId, linkedTxId])
 }
 
+model CryptoAddress {
+  id             String          @id @default(uuid())
+  provider       CryptoProvider  @default(OBIEX)
+  userId         String
+  walletAddress  String          @unique
+  network        String
+  active         Boolean         @default(true)
+  currency       CryptoCurrency
+  isDeleted      Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cryptoPayments CryptoPayment[]
+
+  @@index([walletAddress, userId])
+}
+
+model CryptoTransaction {
+  id              String         @id @default(uuid())
+  cryptoPaymentId String?        @unique
+  network         String
+  currency        CryptoCurrency
+  fromAddress     String?
+  toAddress       String?
+  amount          Int
+  fee             Int?
+  status          PaymentStatus  @default(PENDING)
+  transactionType PaymentEntry
+  provider        CryptoProvider @default(OBIEX)
+  reference       String?
+  payment         CryptoPayment? @relation(fields: [cryptoPaymentId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([toAddress])
+  @@index([fromAddress])
+  @@index([status])
+}
+
+model CryptoPayment {
+  id              String         @id @default(uuid())
+  userId          String?
+  cryptoAddressId String?
+  address         String?
+  reference       String?        @unique
+  currency        CryptoCurrency
+  transactionType PaymentEntry
+  network         String
+  amount          Decimal        @db.Decimal(36, 18)
+  amountReceived  Decimal?       @db.Decimal(36, 18)
+  fee             Decimal?       @db.Decimal(36, 18)
+  status          PaymentStatus  @default(PENDING)
+  hash            String?
+  failedAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user          User?              @relation(fields: [userId], references: [id])
+  cryptoAddress CryptoAddress?     @relation(fields: [cryptoAddressId], references: [id])
+  transaction   CryptoTransaction?
+
+  @@index([hash, userId, reference, cryptoAddressId])
+}
+
 model Webhook {
   id            String    @id @default(uuid())
   accountId     String?
@@ -365,6 +433,12 @@ enum Currency {
   CAD
 }
 
+enum CryptoCurrency {
+  BTC
+  ETH
+  USDT
+}
+
 enum Country {
   NG
   US
@@ -382,6 +456,7 @@ enum IdentityType {
   NIN
   PASSPORT
   DRIVER_LICENSE
+  BVN
 }
 
 enum BillType {
@@ -470,4 +545,8 @@ enum ChargeType {
   account_issuance
   compliance
   chargeBack_fraud_wire_recall
+}
+
+enum CryptoProvider {
+  OBIEX
 }

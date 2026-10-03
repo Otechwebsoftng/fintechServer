@@ -9,6 +9,8 @@ import { FincraVerificationService } from 'src/vendors/fincra.verification-servi
 import { DojahVerificationService } from 'src/vendors/dojah.verification';
 import { GraphService } from 'src/vendors/graph.service';
 import { WalletModule } from 'src/wallet/wallet.module';
+import { CryptoModule } from 'src/crypto/crypto.module';
+import { SmileIdVerificationService } from 'src/vendors/smileId.verification.service';
 
 @Module({
   imports: [
@@ -16,12 +18,14 @@ import { WalletModule } from 'src/wallet/wallet.module';
     PassportModule,
     UsersModule,
     WalletModule,
+    CryptoModule,
   ],
   providers: [
     KycService,
     CustomLogger,
     FincraVerificationService,
     DojahVerificationService,
+    SmileIdVerificationService,
     GraphService,
     CustomLogger,
   ],

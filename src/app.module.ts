@@ -18,6 +18,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PaymentModule } from './payment/payment.module';
 import { TransactionChargeModule } from './transaction-charge/transaction-charge.module';
+import { CryptoModule } from './crypto/crypto.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { TransactionChargeModule } from './transaction-charge/transaction-charge
     WebhooksModule,
     PaymentModule,
     TransactionChargeModule,
+    CryptoModule,
   ],
   controllers: [AppController],
   providers: [
