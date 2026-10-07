@@ -188,20 +188,20 @@ export class AdminController {
     return await this.adminService.restore(adminId, userId);
   }
 
-  @Patch(':userId/suspend')
-  @ApiOperation({
-    description: ' delete a suspended admin ',
-    summary: 'Only a super admin can permanently delete an admin ',
-  })
-  @ApiParam({
-    name: 'userId',
-    required: true,
-    description: 'Id of the admin to be deleted',
-  })
-  @UseGuards(AuthGuard(), PermissionsGuard)
-  @Permissions('super_admin.full_access', 'admin.soft_delete')
-  async delete(@Param('userId') userId: string, @CurrentUser() user: User) {
-    const adminId = user.id;
-    return await this.adminService.softDelete(adminId, userId);
-  }
+  // @Patch(':userId/suspend')
+  // @ApiOperation({
+  //   description: ' delete a suspended admin ',
+  //   summary: 'Only a super admin can permanently delete an admin ',
+  // })
+  // @ApiParam({
+  //   name: 'userId',
+  //   required: true,
+  //   description: 'Id of the admin to be deleted',
+  // })
+  // @UseGuards(AuthGuard(), PermissionsGuard)
+  // @Permissions('super_admin.full_access', 'admin.soft_delete')
+  // async delete(@Param('userId') userId: string, @CurrentUser() user: User) {
+  //   const adminId = user.id;
+  //   return await this.adminService.softDelete(adminId, userId);
+  // }
 }
