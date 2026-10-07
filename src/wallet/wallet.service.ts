@@ -4,7 +4,6 @@ import {
   forwardRef,
   Inject,
   Injectable,
-  InternalServerErrorException,
   NotFoundException,
   RequestTimeoutException,
 } from '@nestjs/common';

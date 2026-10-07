@@ -1,7 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PermissionService } from 'src/permission/permission.service';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { connect } from 'http2';
 import { Utility } from 'src/helpers/utilities.service';
 import { CreateRoleDto } from './dto/createRole.dto';
 
@@ -171,8 +170,14 @@ export class RoleService {
       throw new NotFoundException('Role not found.');
     }
 
-    await this.prisma.role.delete({
-      where: { id: roleId },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.rolePermission.deleteMany({
+        where: { roleId },
+      });
+
+      await tx.role.delete({
+        where: { id: roleId },
+      });
     });
 
     return { message: 'Role deleted successfully.' };
