@@ -336,7 +336,7 @@ export class AdminService {
         }
       }
 
-      this.logger.error('Failed to permanently delete Admin');
+      this.logger.error('Failed to suspended Admin');
 
       throw new InternalServerErrorException('Failed to soft delete a admin.');
     }
@@ -347,7 +347,7 @@ export class AdminService {
       await this.prisma.user.update({
         where: {
           id: id,
-          isDeleted: false,
+          isDeleted: true,
           userType: UserType.ADMIN,
         },
         data: {
