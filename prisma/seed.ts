@@ -139,8 +139,8 @@ async function main() {
       permissionSlugs: ['finance.view'],
     },
     {
-      name: 'Transactions',
-      url: '/transactions',
+      name: 'Payments',
+      url: '/payments',
       icon: 'gr GrTransaction',
       order: 7,
       permissionSlugs: ['finance.view', 'finance.view_all'],

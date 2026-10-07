@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   InternalServerErrorException,
@@ -382,10 +381,13 @@ export class AdminService {
       totalNumberOfUsers,
       totalNumberOfActiveUsers,
       totalNumberOfDeletedUsers,
+      totalActiveAdmin,
+      totalRemovedAdmin,
     ] = await Promise.all([
       this.prisma.user.count({
         where: { userType: UserType.USER },
       }),
+
       this.prisma.user.count({
         where: {
           userType: UserType.USER,
@@ -393,9 +395,25 @@ export class AdminService {
           isDeleted: false,
         },
       }),
+
       this.prisma.user.count({
         where: {
           userType: UserType.USER,
+          status: AccountStatus.INACTIVE,
+          isDeleted: true,
+        },
+      }),
+
+      this.prisma.user.count({
+        where: {
+          userType: UserType.ADMIN,
+          status: AccountStatus.ACTIVE,
+          isDeleted: false,
+        },
+      }),
+      this.prisma.user.count({
+        where: {
+          userType: UserType.ADMIN,
           status: AccountStatus.INACTIVE,
           isDeleted: true,
         },
@@ -414,6 +432,14 @@ export class AdminService {
       {
         title: 'Total Deleted Users',
         count: totalNumberOfDeletedUsers,
+      },
+      {
+        title: 'Total Active Admin ',
+        count: totalActiveAdmin,
+      },
+      {
+        title: 'Total Removed Admin ',
+        count: totalRemovedAdmin,
       },
     ]);
   }
