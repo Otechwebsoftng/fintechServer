@@ -381,6 +381,7 @@ export class AdminService {
       totalNumberOfUsers,
       totalNumberOfActiveUsers,
       totalNumberOfDeletedUsers,
+      totalNumberOfAdmins,
       totalActiveAdmin,
       totalRemovedAdmin,
     ] = await Promise.all([
@@ -405,6 +406,10 @@ export class AdminService {
       }),
 
       this.prisma.user.count({
+        where: { userType: UserType.ADMIN },
+      }),
+
+      this.prisma.user.count({
         where: {
           userType: UserType.ADMIN,
           status: AccountStatus.ACTIVE,
@@ -422,24 +427,34 @@ export class AdminService {
 
     return Promise.resolve([
       {
-        title: 'Total Users',
-        count: totalNumberOfUsers,
-      },
-      {
-        title: 'Total Active Users',
-        count: totalNumberOfActiveUsers,
-      },
-      {
-        title: 'Total Deleted Users',
-        count: totalNumberOfDeletedUsers,
-      },
-      {
-        title: 'Total Active Admin ',
-        count: totalActiveAdmin,
-      },
-      {
-        title: 'Total Removed Admin ',
-        count: totalRemovedAdmin,
+        users: [
+          {
+            title: 'Total Users',
+            count: totalNumberOfUsers,
+          },
+          {
+            title: 'Total Active Users',
+            count: totalNumberOfActiveUsers,
+          },
+          {
+            title: 'Total Deleted Users',
+            count: totalNumberOfDeletedUsers,
+          },
+        ],
+        admin: [
+          {
+            title: 'Total Admins',
+            count: totalNumberOfAdmins,
+          },
+          {
+            title: 'Total Active Admin ',
+            count: totalActiveAdmin,
+          },
+          {
+            title: 'Total Removed Admin ',
+            count: totalRemovedAdmin,
+          },
+        ],
       },
     ]);
   }
